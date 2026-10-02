@@ -72,12 +72,16 @@ main() {
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
 
-  echo "Mengunduh $asset…"
+  # Kurung kurawal dan tiga titik ASCII: sh bawaan macOS (bash 3.2) membaca
+  # byte pertama karakter non-ASCII sesudah nama variabel sebagai bagian namanya.
+  echo "Mengunduh ${asset}..."
   fetch "$base/$asset" "$tmp/$asset" || fail "gagal mengunduh $base/$asset"
   fetch "$base/SHA256SUMS" "$tmp/SHA256SUMS" || fail "gagal mengunduh $base/SHA256SUMS"
 
   # Unduhan yang rusak atau tertukar tidak pernah dipasang.
-  expected="$(grep "  $asset\$" "$tmp/SHA256SUMS" | cut -d' ' -f1)"
+  # Baris SHA256SUMS: "<hash>  <nama>", atau "<hash> *<nama>" bila dibuat di
+  # Windows.
+  expected="$(awk -v name="$asset" '{ n = $2; sub(/^\*/, "", n); if (n == name) print $1 }' "$tmp/SHA256SUMS")"
   [ -n "$expected" ] || fail "SHA256SUMS tidak memuat $asset"
   actual="$(sha256 "$tmp/$asset")"
   [ "$expected" = "$actual" ] || fail "SHA-256 $asset tidak cocok dengan SHA256SUMS; unduhan tidak dipasang"

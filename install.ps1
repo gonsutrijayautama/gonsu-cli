@@ -65,7 +65,8 @@
         $expected = $null
         foreach ($line in Get-Content -LiteralPath $sums) {
             $parts = $line -split '\s+', 2
-            if ($parts.Count -eq 2 -and $parts[1].Trim() -eq $asset) { $expected = $parts[0].ToLower() }
+            # "<hash>  <nama>", atau "<hash> *<nama>" bila dibuat di Windows.
+            if ($parts.Count -eq 2 -and $parts[1].Trim().TrimStart('*') -eq $asset) { $expected = $parts[0].ToLower() }
         }
         if (-not $expected) { throw "gonsu: SHA256SUMS tidak memuat $asset" }
         $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLower()
