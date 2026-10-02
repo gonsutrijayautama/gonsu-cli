@@ -99,13 +99,13 @@ main() {
     *":$dir:"*) ;;
     *)
       echo
-      echo "$dir belum ada di PATH. Tambahkan ke profil shell Anda:"
+      echo "$dir belum ada di PATH. Tambahkan ke profil shell kamu:"
       echo "  export PATH=\"$dir:\$PATH\""
       ;;
   esac
   echo
   echo "Berikutnya: gonsu new <kode-produk>"
-  echo "gonsu new menarik starter kit dengan git. Bila kit-nya privat, lihat:"
+  echo "gonsu new menarik starter kit dengan git. Kalau kit-nya privat, lihat:"
   echo "  https://github.com/$repo#memasang"
 }
 

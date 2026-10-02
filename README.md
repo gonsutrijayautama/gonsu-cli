@@ -1,49 +1,19 @@
 # gonsu — CLI untuk membuat produk GONSU One
 
-**Untuk tim yang membangun produk untuk dijual di GONSU One.**
+**Untuk tim yang membangun produk yang dijual di GONSU One.**
 
-`gonsu new` membuat project yang sejak menit pertama sudah dapat login lewat
-GONSU, membaca hak pakai paketnya, memberi akses login ke karyawan pelanggan,
-dan diterbitkan sebagai rilis — sehingga tim produk langsung menulis bisnis
-aplikasinya.
-
-```sh
-gonsu new <kode-produk>
-```
-
-`gonsu` sendiri tidak membawa template. Ia **menarik starter kit** — repository
-tersendiri berisi aplikasi sungguhan — mengganti identitas contohnya dengan
-identitas produk Anda, lalu menyiapkan git dan dependency.
+Satu perintah, dan kamu dapat project yang sejak menit pertama sudah bisa login
+lewat GONSU, membaca hak pakai paketnya, memberi akses login ke karyawan
+pelanggan, dan dirilis ke GONSU. Kamu tinggal menulis bisnis aplikasinya.
 
 ```sh
-gonsu new toko-baju                    # kit terbaru
-gonsu new toko-baju --version 0.1.1    # versi kit tertentu
+gonsu new toko-baju
 ```
 
-Tanpa `--version`, yang diambil selalu keadaan terbaru kit (`main`), jadi
-perubahan kit langsung dipakai tanpa memperbarui `gonsu`.
-
-| Kit | Repository | Isi |
-|---|---|---|
-| `go-nextjs` | `gonsu-starter-go-nextjs` | backend Go, frontend Next.js |
-| `nextjs` *(belum tersedia)* | `gonsu-starter-nextjs` | menunggu SDK GONSU untuk JavaScript |
-| `laravel` *(belum tersedia)* | `gonsu-starter-laravel` | menunggu SDK GONSU untuk PHP |
-
-Di terminal, `gonsu new` menanyakan yang belum diberikan: nama tampilan,
-starter kit, module path Go, repository git, dan pemasangan dependency. Kit
-yang belum tersedia tampil dengan alasannya dan tidak dapat dipilih.
-
-Tanpa tanya-jawab — untuk skrip dan CI:
-
-```sh
-gonsu new toko --kit go-nextjs --module github.com/organisasi/toko -n
-```
-
-`gonsu new -h` untuk seluruh flag.
-
-**Kode produk harus sama persis dengan kode produk di Console GONSU**: huruf
-kecil, angka, dan tanda hubung di antaranya, 2–60 karakter. Console hanya
-dibuka staf platform, jadi pendaftaran produknya diminta ke tim platform GONSU.
+`gonsu` tidak membawa template. Ia **menarik starter kit** — repository terpisah
+yang isinya aplikasi sungguhan dan bisa langsung dijalankan — lalu mengganti
+identitas contohnya dengan identitas produkmu dan menyiapkan git serta
+dependency.
 
 ## Memasang
 
@@ -57,60 +27,109 @@ curl -fsSL https://raw.githubusercontent.com/gonsutrijayautama/gonsu-cli/main/in
 irm https://raw.githubusercontent.com/gonsutrijayautama/gonsu-cli/main/install.ps1 | iex
 ```
 
-Skripnya mengunduh binary rilis terbaru, mencocokkan SHA-256-nya dengan
-`SHA256SUMS` rilis itu, lalu menaruhnya di `~/.local/bin` (Windows:
-`%LOCALAPPDATA%\Programs\gonsu`, yang ditambahkan ke PATH pengguna). Tanpa sudo
-dan tanpa hak administrator.
+Skrip ini mengunduh binary rilis terbaru, mencocokkan SHA-256-nya dengan
+`SHA256SUMS` rilis itu, lalu menaruhnya di `~/.local/bin`. Di Windows tempatnya
+`%LOCALAPPDATA%\Programs\gonsu`, dan folder itu ditambahkan ke PATH pengguna.
+Tidak perlu sudo atau hak administrator.
 
 | Variabel | Arti |
 |---|---|
-| `GONSU_VERSION` | versi yang dipasang, misalnya `0.1.0`; bawaannya rilis terbaru |
+| `GONSU_VERSION` | versi yang dipasang, misalnya `0.1.0`. Kosong berarti rilis terbaru |
 | `GONSU_INSTALL_DIR` | folder tujuan |
 
-Dengan Go: `go install github.com/gonsutrijayautama/gonsu-cli/cmd/gonsu@latest`.
-
-### Memperbarui
-
-```sh
-gonsu update           # memasang rilis terbaru
-gonsu update --check   # hanya memeriksa apakah ada rilis baru
-```
-
-`gonsu update` mengunduh rilis terbaru untuk sistem Anda, mencocokkan
-SHA-256-nya dengan `SHA256SUMS` seperti installer, menjalankan binary barunya
-sekali untuk memastikan ia utuh, lalu baru menggantikan `gonsu` yang terpasang.
-Bila salah satu langkah itu gagal, `gonsu` yang lama tidak disentuh.
-
-Di terminal, `gonsu new` juga memberi tahu bila ada rilis yang lebih baru.
-
-`gonsu update` ada sejak v0.2.0. Dari versi yang lebih lama, jalankan sekali
-lagi perintah pemasangan di atas — sesudah itu cukup `gonsu update`.
-
-Setiap binary rilis membawa bukti asal yang dapat diperiksa:
-`gh attestation verify gonsu_linux_amd64.tar.gz --repo gonsutrijayautama/gonsu-cli`.
+Kalau sudah punya Go, bisa juga:
+`go install github.com/gonsutrijayautama/gonsu-cli/cmd/gonsu@latest`.
 
 `gonsu new` menarik starter kit dengan git, jadi git harus terpasang. Kit yang
 publik langsung bisa ditarik.
 
-**Bila kit-nya privat**, yang dibutuhkan, sekali per laptop:
+### Kalau kit-nya privat
 
-1. **Akses.** Akun GitHub Anda diundang ke repository kit itu.
-2. **Git dapat masuk ke GitHub**, dengan salah satu cara:
+Cukup sekali per laptop:
+
+1. **Minta akses.** Akun GitHub kamu diundang ke repository kit itu.
+2. **Pastikan git bisa masuk ke GitHub.** Pilih salah satu:
 
    ```sh
    gh auth login && gh auth setup-git          # lewat GitHub CLI
    ```
 
    ```sh
-   # atau lewat SSH key yang sudah terdaftar di akun GitHub Anda
+   # atau lewat SSH key yang sudah terdaftar di akun GitHub kamu
    git config --global url."git@github.com:".insteadOf "https://github.com/"
    ```
 
-Tidak ada token atau secret tambahan. Repository produk yang dihasilkan berdiri
-sendiri: CI-nya tidak pernah menarik kit, hanya pustaka publik
-(`gonsu-one-sdk-go`, `gonsu-appkit-go`).
+Tidak ada token atau secret tambahan. Kalau `gonsu new` gagal mengambil kit,
+pesannya menyertakan jawaban dari git.
 
-Bila `gonsu new` gagal mengambil kit, pesannya menyebut jawaban git.
+Repository produk yang dihasilkan berdiri sendiri: CI-nya tidak pernah menarik
+kit, hanya pustaka publik (`gonsu-one-sdk-go`, `gonsu-appkit-go`).
+
+### Memperbarui gonsu
+
+```sh
+gonsu update           # pasang rilis terbaru
+gonsu update --check   # cuma cek, ada rilis baru atau tidak
+```
+
+`gonsu update` mengunduh rilis terbaru untuk sistem kamu, mencocokkan
+SHA-256-nya dengan `SHA256SUMS` seperti installer, lalu menjalankan binary
+barunya sekali untuk memastikan ia utuh. Baru sesudah itu `gonsu` yang terpasang
+diganti. Kalau salah satu langkah gagal, `gonsu` yang lama tidak disentuh.
+
+Di terminal, `gonsu new` juga memberi tahu kalau ada rilis yang lebih baru.
+
+`gonsu update` ada sejak v0.2.0. Dari versi yang lebih lama, jalankan lagi
+perintah pemasangan di atas sekali. Sesudah itu cukup `gonsu update`.
+
+## Membuat project
+
+```sh
+gonsu new toko-baju                    # kit terbaru
+gonsu new toko-baju --version 0.1.1    # versi kit tertentu
+```
+
+Di terminal, `gonsu new` menanyakan yang belum kamu isi lewat flag: nama
+tampilan, starter kit, module path Go, perlu repository git atau tidak, dan
+dependency langsung dipasang atau tidak.
+
+Untuk skrip dan CI, tambahkan `-n` supaya tidak ada pertanyaan:
+
+```sh
+gonsu new toko --kit go-nextjs --module github.com/organisasi/toko -n
+```
+
+Daftar flag lengkapnya: `gonsu new -h`.
+
+### Kode produk
+
+**Kode produk harus sama persis dengan kode produk di Console GONSU**: huruf
+kecil, angka, dan tanda hubung di antaranya, 2–60 karakter. Console hanya bisa
+dibuka staf platform, jadi minta tim platform GONSU mendaftarkan produknya.
+
+### Starter kit
+
+| Kit | Repository | Isi |
+|---|---|---|
+| `go-nextjs` | `gonsu-starter-go-nextjs` | backend Go, frontend Next.js |
+| `nextjs` *(belum tersedia)* | `gonsu-starter-nextjs` | menunggu SDK GONSU untuk JavaScript |
+| `laravel` *(belum tersedia)* | `gonsu-starter-laravel` | menunggu SDK GONSU untuk PHP |
+
+Kit yang belum tersedia tetap muncul di pilihan beserta alasannya, tapi belum
+bisa dipilih.
+
+### Versi kit
+
+Tanpa `--version`, yang diambil selalu `main` kit yang terbaru. Jadi perubahan
+kit langsung terpakai, tanpa perlu memperbarui `gonsu`.
+
+`--version 0.1.1` mengambil tag `kit-v0.1.1` di repository kit. Cukup tulis
+nomornya: `0.1.1`, `v0.1.1`, dan `kit-v0.1.1` sama saja. Tag kit berawalan
+`kit-` karena tag `v*` di sana memicu pipeline rilis produk.
+
+Project hasil mencatat kit asalnya di `.gonsu/kit.json`: nama kit dan
+commit-nya. Kalau nanti mau ikut perubahan kit, bandingkan commit itu dengan
+`main` kit. Selisihnya adalah catatan naik versinya.
 
 ## Yang didapat dari kit `go-nextjs`
 
@@ -118,62 +137,87 @@ Bila `gonsu new` gagal mengambil kit, pesannya menyebut jawaban git.
   Portal GONSU;
 - modul standar GONSU dari pustaka
   [`gonsu-appkit-go`](https://github.com/gonsutrijayautama/gonsu-appkit-go):
-  profil bisnis (nama, kontak, NPWP, alamat, logo) dan wilayah Indonesia
-  sampai desa — sama di setiap produk, di-upgrade lewat `go get`;
-- modul contoh Catatan, dari tabel sampai layar, dengan uji peramban;
-- `Dockerfile`, CI setiap PR, dan pipeline rilis ke GONSU saat tag `v*`
+  profil bisnis (nama, kontak, NPWP, alamat, logo), halaman depan publik,
+  media, dan wilayah Indonesia sampai desa. Modulnya sama di setiap produk dan
+  di-upgrade lewat `go get`;
+- modul contoh Catatan, dari tabel sampai layar, lengkap dengan uji peramban;
+- `Dockerfile`, CI di setiap PR, dan pipeline rilis ke GONSU saat tag `v*`
   didorong;
-- `AGENTS.md` — peta project, resep menambah modul, dan aturan yang tidak
-  boleh dilanggar — sehingga agen AI langsung bekerja mengikuti pola produk
-  GONSU, serta panduan UI yang ditegakkan `make lint`.
+- `AGENTS.md` berisi peta project, resep menambah modul, dan aturan yang tidak
+  boleh dilanggar, jadi agen AI langsung bekerja mengikuti pola produk GONSU.
+  Panduan UI-nya ditegakkan `make lint`.
 
-Project hasil mencatat kit asalnya di `.gonsu/kit.json` (kit dan commit-nya).
-Saat ingin mengikuti perubahan kit, selisih antara commit itu dan `main`
-repository kit adalah catatan naik versinya.
+## Keamanan
+
+**Yang dijalankan dari kit.** `gonsu new` hanya menjalankan perintah `install`
+yang tertulis di manifes kit (`gonsu.kit.json`), misalnya `go mod download` dan
+`bun install`. Tiap perintah dicetak sebelum dijalankan, dan semuanya bisa
+dilewati dengan `--install=false`. Di luar itu gonsu tidak menjalankan apa pun
+dari kit, dan tidak menghapus atau menulis file di luar folder project — juga
+kalau kit-nya membawa symlink.
+
+Kit di katalog adalah repository milik GONSU. Lain cerita kalau kamu memakai
+`--kit-source` ke kit yang tidak kamu kenal: itu sama saja dengan menjalankan
+perintah orang lain di laptopmu. Baca dulu `gonsu.kit.json`-nya, atau pakai
+`--install=false`.
+
+**Alamat kit yang membawa token** (`https://TOKEN@github.com/...`) tidak ikut
+tercetak di pesan galat dan tidak dicatat di `.gonsu/kit.json`.
+
+**Keaslian binary.** Installer dan `gonsu update` mencocokkan SHA-256 unduhan
+dengan `SHA256SUMS` dari rilis yang sama. Itu menangkap unduhan yang rusak atau
+tertukar. Untuk memastikan sebuah binary memang dibangun dari repository dan
+tag ini, periksa attestation-nya:
+
+```sh
+gh attestation verify gonsu_linux_amd64.tar.gz --repo gonsutrijayautama/gonsu-cli
+```
 
 ## Pengembangan
 
 ```sh
 go test ./...                 # gonsu sendiri, tanpa jaringan
-go run ./cmd/gonsu new contoh # mencoba di terminal; butuh akses ke kit
+go run ./cmd/gonsu new contoh # coba di terminal; butuh akses ke kit
 ```
 
-**Merilis gonsu:** dorong tag `v*` (`git tag v0.2.0 && git push origin v0.2.0`).
+Aturan repository ini ada di [AGENTS.md](AGENTS.md).
+
+**Merilis gonsu.** Dorong tag `v*`:
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
+```
+
 `release.yml` menjalankan test, membangun binary untuk Linux, macOS, dan
 Windows (`scripts/release.sh`), lalu menerbitkannya sebagai GitHub Release
-beserta `SHA256SUMS` dan bukti asal. Installer selalu mengambil rilis terbaru.
+beserta `SHA256SUMS` dan attestation-nya. Installer selalu mengambil rilis
+terbaru.
 
-**Mencoba installer tanpa rilis:**
+**Mencoba installer tanpa rilis.**
 
 ```sh
 scripts/release.sh v0.0.0-uji
 GONSU_DOWNLOAD_BASE="$PWD/dist" GONSU_INSTALL_DIR=/tmp/gonsu-uji sh install.sh
 ```
 
-**Mengubah isi project hasil dikerjakan di repository kit**, bukan di sini:
-kit adalah aplikasi yang dapat dijalankan, jadi perubahan dicoba langsung di
-sana (`make run`, `make test`, `make e2e`). Aturannya ada di `KIT.md` kit itu.
+**Mengubah isi project hasil.** Itu dikerjakan di repository kit, bukan di
+sini. Kit adalah aplikasi yang bisa dijalankan, jadi perubahannya dicoba
+langsung di sana (`make run`, `make test`, `make e2e`). Aturannya ada di
+`KIT.md` kit itu.
 
-**Mencoba perubahan kit sebelum digabung ke `main`-nya:**
+**Mencoba perubahan kit sebelum masuk ke `main`-nya.**
 
 ```sh
 gonsu new uji-kit --kit-source ../gonsu-starter-go-nextjs   # working tree lokal
 gonsu new uji-kit --version nama-cabang                     # cabang kit yang sudah didorong
 ```
 
-**Tanpa `--version`, `gonsu new` mengambil `main` kit.** gonsu tidak perlu
-dirilis ulang saat kit berubah — dan karena itu `main` kit harus selalu siap
+Karena `gonsu new` selalu mengambil `main` kit, `main` kit harus selalu siap
 dipakai: perubahan masuk lewat PR dengan CI hijau.
-
-**`--version 0.1.1` mengambil tag `kit-v0.1.1`** di repository kit. Tag kit
-berawalan `kit-` karena tag `v*` di sana memicu pipeline rilis produk; pemakai
-cukup menulis nomornya (`0.1.1`, `v0.1.1`, dan `kit-v0.1.1` sama saja).
-
-Aturan repository ini ada di [AGENTS.md](AGENTS.md).
 
 ## Lisensi
 
 Proprietary; lihat [LICENSE](LICENSE). Starter kit, SDK GONSU One
 ([gonsu-one-sdk-go](https://github.com/gonsutrijayautama/gonsu-one-sdk-go)),
-dan `gonsu-appkit-go` berlisensi sendiri; baca lisensinya di repository
+dan `gonsu-appkit-go` punya lisensinya sendiri. Baca di repository
 masing-masing.
