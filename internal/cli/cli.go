@@ -125,7 +125,7 @@ Untuk perawat starter kit:
 
 Tanpa -n dan di terminal, gonsu menanyakan isian yang belum diberikan.
 Tanpa --version, yang diambil keadaan TERBARU kit. Kit asal project tercatat
-di .gonsu/kit.json. Starter kit diambil dengan git; bila kit-nya privat, akun
-GitHub Anda harus punya akses dan git harus bisa masuk (lihat README gonsu-cli).
+di .gonsu/kit.json. Starter kit diambil dengan git; kalau kit-nya privat, akun
+GitHub kamu harus punya akses dan git harus bisa masuk (lihat README gonsu-cli).
 `)
 }

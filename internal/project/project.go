@@ -31,14 +31,20 @@ func ValidateProductCode(code string) error {
 }
 
 // ValidateDisplayName memeriksa nama tampilan: 1–200 karakter, sama dengan
-// nama produk di Console.
+// nama produk di Console, dan satu baris.
 func ValidateDisplayName(name string) error {
-	n := utf8.RuneCountInString(strings.TrimSpace(name))
+	name = strings.TrimSpace(name)
+	n := utf8.RuneCountInString(name)
 	if n == 0 {
 		return errors.New("nama tampilan wajib diisi")
 	}
 	if n > 200 {
 		return fmt.Errorf("nama tampilan paling panjang 200 karakter, diterima %d", n)
+	}
+	// Nama ditulis apa adanya ke berkas yang bukan kode (YAML, .env, skrip):
+	// baris baru di sini menjadi baris baru di sana.
+	if strings.ContainsFunc(name, unicode.IsControl) {
+		return errors.New("nama tampilan harus satu baris, tanpa tab atau karakter kontrol")
 	}
 	return nil
 }

@@ -200,6 +200,93 @@ func TestApplyRejections(t *testing.T) {
 	}
 }
 
+// Kit boleh membawa symlink, tetapi tidak ada yang dihapus atau ditulis Apply
+// di luar folder project — dengan --install=false sekalipun, kit tidak
+// menyentuh berkas pemakai.
+func TestApplyStaysInsideProject(t *testing.T) {
+	id := Identity{ProductCode: "toko", DisplayName: "Toko", ModulePath: "github.com/organisasi/toko"}
+	// outside adalah folder milik pemakai di luar project, berisi satu berkas.
+	outside := func(t *testing.T) (dir, file string) {
+		t.Helper()
+		dir = t.TempDir()
+		file = filepath.Join(dir, "penting.txt")
+		if err := os.WriteFile(file, []byte("milik pemakai"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return dir, file
+	}
+	symlink := func(t *testing.T, target, link string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, link); err != nil {
+			t.Skipf("symlink tidak dapat dibuat di sistem ini: %v", err)
+		}
+	}
+	untouched := func(t *testing.T, file string) {
+		t.Helper()
+		if got, err := os.ReadFile(file); err != nil || string(got) != "milik pemakai" {
+			t.Errorf("berkas di luar project berubah: %q, %v", got, err)
+		}
+	}
+	manifest := func(remove string) string {
+		return `{"schema": 1, "kit": "uji", "identity": {"product_code": "produk-contoh", "display_name": "Produk Contoh"},
+			"remove": [` + remove + `]}`
+	}
+
+	t.Run("remove lewat symlink", func(t *testing.T) {
+		away, file := outside(t)
+		dir := writeKit(t, map[string]string{ManifestName: manifest(`"keluar/penting.txt"`)})
+		symlink(t, away, filepath.Join(dir, "keluar"))
+		m, err := Load(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := Apply(dir, m, id, Origin{}); err == nil || !strings.Contains(err.Error(), "keluar/penting.txt") {
+			t.Errorf("err = %v, ingin menyebut jalur yang ditolak", err)
+		}
+		untouched(t, file)
+	})
+
+	t.Run("catatan asal berupa symlink", func(t *testing.T) {
+		_, file := outside(t)
+		dir := writeKit(t, map[string]string{ManifestName: manifest("")})
+		symlink(t, file, filepath.Join(dir, filepath.FromSlash(OriginPath)))
+		m, err := Load(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := Apply(dir, m, id, Origin{Commit: "abc123"}); err != nil {
+			t.Fatal(err)
+		}
+		untouched(t, file)
+		// Yang ditulis berkas baru di dalam project.
+		if info, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(OriginPath))); err != nil || !info.Mode().IsRegular() {
+			t.Errorf("%s bukan berkas biasa: %v", OriginPath, err)
+		}
+		if got := read(t, dir, OriginPath); !strings.Contains(got, "abc123") {
+			t.Errorf("%s = %q", OriginPath, got)
+		}
+	})
+
+	t.Run("folder catatan asal berupa symlink", func(t *testing.T) {
+		away, _ := outside(t)
+		dir := writeKit(t, map[string]string{ManifestName: manifest("")})
+		symlink(t, away, filepath.Join(dir, filepath.Dir(filepath.FromSlash(OriginPath))))
+		m, err := Load(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := Apply(dir, m, id, Origin{}); err == nil || !strings.Contains(err.Error(), OriginPath) {
+			t.Errorf("err = %v, ingin menyebut %s", err, OriginPath)
+		}
+		if _, err := os.Stat(filepath.Join(away, filepath.Base(OriginPath))); err == nil {
+			t.Error("catatan asal ditulis di luar project")
+		}
+	})
+}
+
 func TestLoadRejections(t *testing.T) {
 	if _, err := Load(t.TempDir()); err == nil || !strings.Contains(err.Error(), "bukan starter kit") {
 		t.Errorf("folder tanpa manifes = %v", err)
@@ -217,6 +304,13 @@ func TestLoadRejections(t *testing.T) {
 			"tanpa perintah"},
 		"install keluar folder": {`{"schema": 1, "kit": "x", "identity": {"product_code": "a-b", "display_name": "A"}, "install": [{"dir": "/tmp", "run": ["x"]}]}`,
 			"keluar"},
+		// Yang dicetak ke terminal tidak boleh dapat menggeser kursor.
+		"label memuat escape": {`{"schema": 1, "kit": "x", "label": "Kit \u001b[2K", "identity": {"product_code": "a-b", "display_name": "A"}}`,
+			"karakter kontrol"},
+		"install memuat escape": {`{"schema": 1, "kit": "x", "identity": {"product_code": "a-b", "display_name": "A"}, "install": [{"run": ["sh", "-c", "x\u001b[1A"]}]}`,
+			"karakter kontrol"},
+		"next_steps memuat baris baru": {`{"schema": 1, "kit": "x", "identity": {"product_code": "a-b", "display_name": "A"}, "next_steps": ["make run\nrm -rf"]}`,
+			"karakter kontrol"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := writeKit(t, map[string]string{ManifestName: tc.manifest})
@@ -413,5 +507,23 @@ func TestFetchClones(t *testing.T) {
 	_, err = Fetch(context.Background(), "file://"+filepath.Join(t.TempDir(), "tidak-ada"), "", filepath.Join(t.TempDir(), "lain"))
 	if err == nil || !strings.Contains(err.Error(), "gh auth login") {
 		t.Errorf("kit yang tidak terjangkau = %v", err)
+	}
+}
+
+// Token di alamat kit tidak ikut ke pesan galat maupun ke .gonsu/kit.json,
+// yang masuk commit pertama project.
+func TestWithoutCredentials(t *testing.T) {
+	for source, want := range map[string]string{
+		"https://github.com/organisasi/kit.git":                        "https://github.com/organisasi/kit.git",
+		"https://x-access-token:rahasia@github.com/organisasi/kit.git": "https://github.com/organisasi/kit.git",
+		"https://rahasia@github.com/organisasi/kit.git":                "https://github.com/organisasi/kit.git",
+		"ssh://git@github.com/organisasi/kit.git":                      "ssh://git@github.com/organisasi/kit.git",
+		"ssh://git:rahasia@github.com/organisasi/kit.git":              "ssh://git@github.com/organisasi/kit.git",
+		"git@github.com:organisasi/kit.git":                            "git@github.com:organisasi/kit.git",
+		"file:///srv/kit":                                              "file:///srv/kit",
+	} {
+		if got := withoutCredentials(source); got != want {
+			t.Errorf("withoutCredentials(%q) = %q, ingin %q", source, got, want)
+		}
 	}
 }

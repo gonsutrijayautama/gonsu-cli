@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 // ManifestName adalah nama berkas manifes di akar kit.
@@ -103,12 +104,24 @@ func (m Manifest) validate() error {
 			return fmt.Errorf("remove menyebut %q, yang keluar dari folder project", p)
 		}
 	}
+	// Yang dicetak gonsu ke terminal apa adanya. Karakter kontrol di sana bisa
+	// menggeser kursor atau menghapus baris, sehingga perintah yang dijalankan
+	// tidak sama dengan yang terbaca.
+	printed := []string{m.Label}
+	printed = append(printed, m.NextSteps...)
 	for _, s := range m.Install {
 		if len(s.Run) == 0 {
 			return errors.New("install memuat langkah tanpa perintah")
 		}
 		if s.Dir != "" && !filepath.IsLocal(filepath.FromSlash(s.Dir)) {
 			return fmt.Errorf("install menyebut folder %q, yang keluar dari folder project", s.Dir)
+		}
+		printed = append(printed, s.Dir)
+		printed = append(printed, s.Run...)
+	}
+	for _, s := range printed {
+		if strings.ContainsFunc(s, unicode.IsControl) {
+			return fmt.Errorf("label, install, dan next_steps tidak boleh memuat karakter kontrol: %q", s)
 		}
 	}
 	return nil

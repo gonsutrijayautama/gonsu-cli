@@ -41,13 +41,15 @@ jobs:
     # ke Ubuntu baru pada jadwal GitHub, dan CI tidak boleh berubah tanpa PR.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      KIT_DEPLOY_KEY: ${{ secrets.KIT_DEPLOY_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Akses baca ke repository kit
         id: access
+        # Secret hanya untuk langkah ini, bukan untuk seluruh job: langkah lain
+        # menjalankan kode kit dan dependency-nya.
+        env:
+          KIT_DEPLOY_KEY: ${{ secrets.KIT_DEPLOY_KEY }}
         run: |
           if [ -z "$KIT_DEPLOY_KEY" ]; then
             echo "::notice::KIT_DEPLOY_KEY belum dipasang; pemeriksaan terhadap kit sungguhan dilewati."
@@ -80,6 +82,15 @@ jobs:
           cd "$RUNNER_TEMP"
           ./gonsu new contoh-uji --name 'Toko "Uji"' -n --git=false --install=false
           cat contoh-uji/.gonsu/kit.json
+
+      # Kit sudah diambil, jadi kuncinya dibuang sebelum kode kit dijalankan
+      # (go vet, go test). Sesudah ini git kembali memakai HTTPS tanpa
+      # kredensial: project hasil hanya menarik pustaka publik.
+      - name: Buang akses ke repository kit
+        if: steps.access.outputs.ready == 'true'
+        run: |
+          rm -f ~/.ssh/kit
+          git config --global --unset-all url."git@github.com:".insteadOf
 
       # Identitas contoh kit tidak boleh tersisa di mana pun. Yang dicetak
       # hanya jumlahnya: nama berkas kit bukan konsumsi log publik.
