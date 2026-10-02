@@ -47,8 +47,29 @@ kecil, angka, dan tanda hubung di antaranya, 2–60 karakter.
 ## Memasang
 
 ```sh
-go install github.com/gonsutrijayautama/gonsu-cli/cmd/gonsu@latest
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/gonsutrijayautama/gonsu-cli/main/install.sh | sh
 ```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/gonsutrijayautama/gonsu-cli/main/install.ps1 | iex
+```
+
+Skripnya mengunduh binary rilis terbaru, mencocokkan SHA-256-nya dengan
+`SHA256SUMS` rilis itu, lalu menaruhnya di `~/.local/bin` (Windows:
+`%LOCALAPPDATA%\Programs\gonsu`, yang ditambahkan ke PATH pengguna). Tanpa sudo
+dan tanpa hak administrator. Menjalankannya lagi memperbarui `gonsu`.
+
+| Variabel | Arti |
+|---|---|
+| `GONSU_VERSION` | versi yang dipasang, misalnya `0.1.0`; bawaannya rilis terbaru |
+| `GONSU_INSTALL_DIR` | folder tujuan |
+
+Dengan Go: `go install github.com/gonsutrijayautama/gonsu-cli/cmd/gonsu@latest`.
+
+Setiap binary rilis membawa bukti asal yang dapat diperiksa:
+`gh attestation verify gonsu_linux_amd64.tar.gz --repo gonsutrijayautama/gonsu-cli`.
 
 `gonsu` sendiri publik dan dapat dipasang siapa pun. **Starter kit-nya privat**:
 `gonsu new` menarik kit dengan git, jadi yang dibutuhkan, sekali per laptop:
@@ -98,6 +119,18 @@ repository kit adalah catatan naik versinya.
 ```sh
 go test ./...                 # gonsu sendiri, tanpa jaringan
 go run ./cmd/gonsu new contoh # mencoba di terminal; butuh akses ke kit
+```
+
+**Merilis gonsu:** dorong tag `v*` (`git tag v0.2.0 && git push origin v0.2.0`).
+`release.yml` menjalankan test, membangun binary untuk Linux, macOS, dan
+Windows (`scripts/release.sh`), lalu menerbitkannya sebagai GitHub Release
+beserta `SHA256SUMS` dan bukti asal. Installer selalu mengambil rilis terbaru.
+
+**Mencoba installer tanpa rilis:**
+
+```sh
+scripts/release.sh v0.0.0-uji
+GONSU_DOWNLOAD_BASE="$PWD/dist" GONSU_INSTALL_DIR=/tmp/gonsu-uji sh install.sh
 ```
 
 **Mengubah isi project hasil dikerjakan di repository kit**, bukan di sini:

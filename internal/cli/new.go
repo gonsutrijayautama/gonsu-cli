@@ -159,7 +159,7 @@ func runNew(ctx context.Context, args []string, env Env) error {
 	if err != nil {
 		return err
 	}
-	manifest, err := create(ctx, env, o, dir)
+	manifest, origin, err := create(ctx, env, o, dir)
 	if err != nil {
 		// Kit yang gagal diambil atau diterapkan tidak meninggalkan project
 		// setengah jadi. Folder kosong milik pemakai dikembalikan kosong.
@@ -173,7 +173,7 @@ func runNew(ctx context.Context, args []string, env Env) error {
 	out.done("project dibuat di ./" + o.code + " dari kit " + manifest.Label)
 
 	if o.git {
-		gitInit(ctx, env, dir, out)
+		gitInit(ctx, env, dir, origin.Executables, out)
 	}
 	if o.install {
 		installDependencies(ctx, env, dir, o, manifest, out)
@@ -183,24 +183,24 @@ func runNew(ctx context.Context, args []string, env Env) error {
 }
 
 // create mengambil kit ke dir lalu menjadikannya project produk.
-func create(ctx context.Context, env Env, o *newOptions, dir string) (kit.Manifest, error) {
+func create(ctx context.Context, env Env, o *newOptions, dir string) (kit.Manifest, kit.Origin, error) {
 	source, version := o.source()
 	origin, err := env.Fetch(ctx, source, version, dir)
 	if err != nil {
-		return kit.Manifest{}, err
+		return kit.Manifest{}, kit.Origin{}, err
 	}
 	manifest, err := kit.Load(dir)
 	if err != nil {
-		return kit.Manifest{}, err
+		return kit.Manifest{}, kit.Origin{}, err
 	}
 	id := kit.Identity{ProductCode: o.code, DisplayName: strings.TrimSpace(o.name)}
 	if manifest.Identity.ModulePath != "" {
 		id.ModulePath = o.module
 	}
 	if err := kit.Apply(dir, manifest, id, origin); err != nil {
-		return kit.Manifest{}, err
+		return kit.Manifest{}, kit.Origin{}, err
 	}
-	return manifest, nil
+	return manifest, origin, nil
 }
 
 // ErrNotEmpty berarti folder tujuan sudah berisi.
@@ -229,12 +229,22 @@ func clearDir(dir string) {
 	}
 }
 
-func gitInit(ctx context.Context, env Env, dir string, out printer) {
+// gitInit membuat repository git project beserta commit pertamanya.
+// executables adalah skrip kit yang dapat dieksekusi.
+func gitInit(ctx context.Context, env Env, dir string, executables []string, out printer) {
 	if _, err := env.LookPath("git"); err != nil {
 		out.warn("git tidak ditemukan; repository tidak dibuat")
 		return
 	}
-	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"add", "-A"}} {
+	steps := [][]string{{"init", "-q", "-b", "main"}, {"add", "-A"}}
+	// Izin eksekusi ditandai di indeks git, bukan hanya di disk: di Windows
+	// disk tidak menyimpannya, dan skrip yang tercatat 100644 gagal dijalankan
+	// CI project (`make e2e`, `make smoke`). Di sistem lain ini tidak
+	// mengubah apa pun.
+	if kept := existing(dir, executables); len(kept) > 0 {
+		steps = append(steps, append([]string{"update-index", "--chmod=+x", "--"}, kept...))
+	}
+	for _, args := range steps {
 		if err := env.Exec(ctx, dir, "git", args...); err != nil {
 			out.warn("git " + args[0] + " gagal: " + firstLine(err))
 			return
@@ -246,6 +256,18 @@ func gitInit(ctx context.Context, env Env, dir string, out printer) {
 		return
 	}
 	out.done("repository git dibuat")
+}
+
+// existing menyaring files ke yang masih ada di dir: berkas milik kit sudah
+// dibuang sebelum git dibuat.
+func existing(dir string, files []string) []string {
+	var out []string
+	for _, f := range files {
+		if info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(f))); err == nil && info.Mode().IsRegular() {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // installDependencies menjalankan perintah pemasangan yang disebut manifes

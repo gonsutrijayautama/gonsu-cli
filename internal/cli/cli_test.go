@@ -25,16 +25,18 @@ var kitFiles = map[string]string{
     "display_name": "Produk Contoh",
     "module_path": "github.com/gonsu/starter"
   },
-  "remove": ["KIT.md"],
+  "remove": ["KIT.md", "scripts/kit-check.sh"],
   "install": [
     { "dir": ".", "run": ["go", "mod", "download"] },
     { "dir": "web", "run": ["bun", "install", "--frozen-lockfile"] }
   ],
   "next_steps": ["make run       # server dan database lokal"]
 }`,
-	"KIT.md":    "Untuk perawat kit.\n",
-	"README.md": "# Produk Contoh\n\nHak pakai `produk-contoh.core`, module `github.com/gonsu/starter`.\n",
-	"go.mod":    "module github.com/gonsu/starter\n",
+	"KIT.md":               "Untuk perawat kit.\n",
+	"scripts/e2e.sh":       "#!/bin/sh\n",
+	"scripts/kit-check.sh": "#!/bin/sh\n",
+	"README.md":            "# Produk Contoh\n\nHak pakai `produk-contoh.core`, module `github.com/gonsu/starter`.\n",
+	"go.mod":               "module github.com/gonsu/starter\n",
 }
 
 type fakeWorld struct {
@@ -81,7 +83,8 @@ func newWorld(t *testing.T, interactive bool) *fakeWorld {
 					return kit.Origin{}, err
 				}
 			}
-			return kit.Origin{Source: source, Version: version, Commit: "abc123"}, nil
+			return kit.Origin{Source: source, Version: version, Commit: "abc123",
+				Executables: []string{"scripts/e2e.sh", "scripts/kit-check.sh"}}, nil
 		},
 	}
 	return w
@@ -120,10 +123,13 @@ func TestNewNonInteractive(t *testing.T) {
 	if want := []string{k.Repository + "@"}; strings.Join(w.fetched, "\n") != strings.Join(want, "\n") {
 		t.Errorf("kit yang diambil = %q, ingin %q", w.fetched, want)
 	}
-	// Git, lalu pemasangan dependency seperti disebut manifes kit.
+	// Git, lalu pemasangan dependency seperti disebut manifes kit. Skrip kit
+	// ditandai dapat dieksekusi di indeks git (yang milik kit sudah dibuang,
+	// jadi tidak ikut ditandai).
 	want := []string{
 		"toko-baju: git init -q -b main",
 		"toko-baju: git add -A",
+		"toko-baju: git update-index --chmod=+x -- scripts/e2e.sh",
 		"toko-baju: git commit -q -m Awal dari gonsu new",
 		"toko-baju: go mod download",
 		"web: bun install --frozen-lockfile",
