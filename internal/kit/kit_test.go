@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -263,6 +264,15 @@ func TestFetchFromDirectory(t *testing.T) {
 	if info, err := os.Stat(filepath.Join(dst, "scripts", "run.sh")); err != nil || info.Mode().Perm()&0o100 == 0 {
 		t.Errorf("izin eksekusi tidak ikut tersalin: %v", err)
 	}
+	if got := strings.Join(sorted(origin.Executables), ","); got != "scripts/kit-check.sh,scripts/run.sh" {
+		t.Errorf("berkas yang dapat dieksekusi = %q", got)
+	}
+}
+
+func sorted(s []string) []string {
+	out := slices.Clone(s)
+	slices.Sort(out)
+	return out
 }
 
 func gitRepo(t *testing.T, dir string) func(args ...string) string {
@@ -354,6 +364,10 @@ func TestFetchClones(t *testing.T) {
 	}
 	if origin.Source != source || origin.Version != "kit-v1.0.0" || origin.Commit != tagged {
 		t.Errorf("asal = %+v, ingin commit %s", origin, tagged)
+	}
+	// Dibaca dari indeks git: di Windows izin eksekusi tidak ada di disk.
+	if got := strings.Join(sorted(origin.Executables), ","); got != "scripts/kit-check.sh,scripts/run.sh" {
+		t.Errorf("berkas yang dapat dieksekusi = %q", got)
 	}
 	if _, err := os.Stat(filepath.Join(dst, "sesudah-tag.txt")); err == nil {
 		t.Error("yang diambil ujung cabang, bukan tag yang diminta")

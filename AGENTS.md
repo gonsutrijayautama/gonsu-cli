@@ -51,6 +51,13 @@ dari `main`-nya. Repository ini PUBLIK; starter kit-nya privat.
 - **CI hanya memakai runner GitHub**, tidak pernah self-hosted — PR dari fork
   menjalankan kode di runner yang dipakainya. Secret (`KIT_DEPLOY_KEY`) tidak
   tersedia bagi PR dari fork; job yang membutuhkannya dilewati.
+- **Rilis** dipicu tag `v*` (`release.yml`): binary per sistem, `SHA256SUMS`,
+  dan bukti asal lewat OIDC — tidak ada kunci penandatanganan yang disimpan.
+  `install.sh` dan `install.ps1` di akar repository adalah jalur pasang resmi;
+  keduanya WAJIB mencocokkan SHA-256 sebelum memasang, tidak butuh sudo atau
+  hak administrator, dan diuji `install.yml` di Linux, macOS, dan Windows.
+  Mengubah nama berkas rilis berarti mengubah `scripts/release.sh` dan kedua
+  installer bersamaan.
 - **Tanpa atribusi AI** di pesan commit maupun deskripsi PR.
 - **Dokumen ikut kode**, di PR yang sama: `README.md` untuk perilaku CLI dan
   cara memasangnya.

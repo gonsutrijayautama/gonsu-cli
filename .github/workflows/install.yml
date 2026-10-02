@@ -1,0 +1,122 @@
+# Installer diuji di sistem yang sebenarnya: install.sh di Linux dan macOS,
+# install.ps1 di Windows. Binary-nya dibangun dari commit ini, sehingga skrip
+# yang diubah teruji sebelum ada rilisnya.
+#
+# Juga dijaga di sini, karena hanya terlihat di Windows: skrip kit harus
+# tercatat dapat dieksekusi di git project hasil.
+name: Installer
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: installer-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Membangun berkas rilis
+        run: scripts/release.sh v0.0.0-ci
+
+      - name: install.sh
+        if: runner.os != 'Windows'
+        env:
+          GONSU_DOWNLOAD_BASE: ${{ github.workspace }}/dist
+          GONSU_INSTALL_DIR: ${{ runner.temp }}/gonsu-bin
+        run: |
+          sh install.sh
+          test "$("$GONSU_INSTALL_DIR/gonsu" version)" = "gonsu v0.0.0-ci"
+          echo "$GONSU_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: install.sh menolak unduhan yang rusak
+        if: runner.os != 'Windows'
+        env:
+          GONSU_INSTALL_DIR: ${{ runner.temp }}/gonsu-rusak
+        run: |
+          cp -r dist "$RUNNER_TEMP/rusak"
+          for f in "$RUNNER_TEMP"/rusak/gonsu_*; do echo x >> "$f"; done
+          if GONSU_DOWNLOAD_BASE="$RUNNER_TEMP/rusak" sh install.sh; then
+            echo "Unduhan yang rusak tetap dipasang."
+            exit 1
+          fi
+          test ! -e "$GONSU_INSTALL_DIR/gonsu"
+
+      - name: install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GONSU_DOWNLOAD_BASE: ${{ github.workspace }}\dist
+          GONSU_INSTALL_DIR: ${{ runner.temp }}\gonsu-bin
+        run: |
+          ./install.ps1
+          $got = & "$env:GONSU_INSTALL_DIR\gonsu.exe" version
+          if ($got -ne 'gonsu v0.0.0-ci') { throw "versi = $got" }
+          Add-Content -Path $env:GITHUB_PATH -Value $env:GONSU_INSTALL_DIR
+
+      # Windows PowerShell 5.1 adalah yang ada di setiap Windows; pwsh belum
+      # tentu terpasang di laptop pemakai.
+      - name: install.ps1 di Windows PowerShell 5.1, lewat irm | iex
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          GONSU_DOWNLOAD_BASE: ${{ github.workspace }}\dist
+          GONSU_INSTALL_DIR: ${{ runner.temp }}\gonsu-bin-51
+        run: |
+          Get-Content -Raw ./install.ps1 | Invoke-Expression
+          $got = & "$env:GONSU_INSTALL_DIR\gonsu.exe" version
+          if ($got -ne 'gonsu v0.0.0-ci') { throw "versi = $got" }
+
+      # gonsu new dari binary yang baru dipasang, terhadap kit uji berupa
+      # repository git yang skripnya tercatat dapat dieksekusi.
+      - name: Skrip kit tetap dapat dieksekusi di project hasil
+        run: |
+          git config --global user.name "gonsu-cli CI"
+          git config --global user.email "ci@gonsu-cli.invalid"
+          kit="$RUNNER_TEMP/kit-uji"
+          mkdir -p "$kit/scripts"
+          cat > "$kit/gonsu.kit.json" <<'EOF'
+          {
+            "schema": 1,
+            "kit": "uji",
+            "label": "Kit Uji",
+            "identity": { "product_code": "produk-contoh", "display_name": "Produk Contoh" }
+          }
+          EOF
+          printf '#!/bin/sh\necho produk-contoh\n' > "$kit/scripts/run.sh"
+          printf '# Produk Contoh\n' > "$kit/README.md"
+          git -C "$kit" init -q -b main
+          git -C "$kit" add -A
+          # Di Windows, disk tidak menyimpan izin eksekusi; indeks git yang menyimpannya.
+          git -C "$kit" update-index --chmod=+x scripts/run.sh
+          git -C "$kit" commit -q -m "kit uji"
+
+          cd "$RUNNER_TEMP"
+          gonsu new toko-uji --kit-source "$kit" -n --install=false
+          mode="$(git -C toko-uji ls-files -s scripts/run.sh | cut -d' ' -f1)"
+          if [ "$mode" != "100755" ]; then
+            echo "scripts/run.sh tercatat $mode di project hasil, ingin 100755."
+            exit 1
+          fi
+          grep -q 'echo toko-uji' toko-uji/scripts/run.sh

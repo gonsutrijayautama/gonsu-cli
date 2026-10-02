@@ -1,0 +1,48 @@
+# Rilis gonsu: tag v* → binary untuk setiap sistem, SHA256SUMS, bukti asal
+# (attestation), lalu GitHub Release. install.sh dan install.ps1 mengunduh
+# dari rilis ini.
+#
+# HANYA runner GitHub. Tidak ada kunci penandatanganan yang disimpan: bukti
+# asal ditandatangani identitas workflow ini sendiri (OIDC), sehingga siapa
+# pun dapat memeriksa bahwa sebuah binary dibangun dari repository dan tag
+# ini: `gh attestation verify <berkas> --repo gonsutrijayautama/gonsu-cli`.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Rilis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # membuat GitHub Release
+      id-token: write # identitas OIDC untuk bukti asal
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # Tag yang tidak lulus test tidak pernah menjadi rilis.
+      - name: Test
+        run: go test -race -count=1 ./...
+
+      - name: Membangun berkas rilis
+        run: scripts/release.sh "$GITHUB_REF_NAME"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/gonsu_*
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes --verify-tag

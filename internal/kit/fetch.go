@@ -23,6 +23,12 @@ type Origin struct {
 	// Commit adalah commit kit yang disalin — inilah yang menentukan isi
 	// project, apa pun Version-nya. Kosong bila tidak diketahui.
 	Commit string `json:"commit,omitempty"`
+
+	// Executables adalah berkas kit yang dapat dieksekusi (skrip), relatif
+	// terhadap akar kit. Tidak dicatat di project; dipakai `gonsu new` untuk
+	// menandainya di git — di Windows, izin eksekusi tidak ada di disk, dan
+	// tanpa ini skrip tercatat 100644 lalu gagal dijalankan CI.
+	Executables []string `json:"-"`
 }
 
 // LocalSource adalah Origin.Source untuk kit yang disalin dari folder. Path
@@ -37,11 +43,11 @@ const LocalSource = "local"
 // kosong berarti ujung cabang bawaan kit.
 func Fetch(ctx context.Context, source, version, dir string) (Origin, error) {
 	if info, err := os.Stat(source); err == nil && info.IsDir() {
-		commit, err := copyTree(ctx, source, dir)
+		commit, executables, err := copyTree(ctx, source, dir)
 		if err != nil {
 			return Origin{}, fmt.Errorf("menyalin kit dari %s: %w", source, err)
 		}
-		return Origin{Source: LocalSource, Commit: commit}, nil
+		return Origin{Source: LocalSource, Commit: commit, Executables: executables}, nil
 	}
 	if _, err := exec.LookPath("git"); err != nil {
 		return Origin{}, errors.New("git tidak ditemukan — gonsu mengambil starter kit dengan git")
@@ -69,11 +75,35 @@ func Fetch(ctx context.Context, source, version, dir string) (Origin, error) {
 	if err != nil {
 		return Origin{}, fmt.Errorf("membaca commit kit: %w", err)
 	}
+	// Dibaca dari indeks git, bukan dari disk: di Windows hanya indeks yang
+	// menyimpan izin eksekusi.
+	executables, err := indexExecutables(ctx, dir)
+	if err != nil {
+		return Origin{}, err
+	}
 	// Riwayat kit bukan riwayat produk.
 	if err := os.RemoveAll(filepath.Join(dir, ".git")); err != nil {
 		return Origin{}, err
 	}
-	return Origin{Source: source, Version: version, Commit: strings.TrimSpace(string(commit))}, nil
+	return Origin{Source: source, Version: version, Commit: strings.TrimSpace(string(commit)), Executables: executables}, nil
+}
+
+// indexExecutables mengembalikan berkas yang tercatat 100755 di indeks git
+// repository dir.
+func indexExecutables(ctx context.Context, dir string) ([]string, error) {
+	out, err := git(ctx, dir, "ls-files", "-s", "-z")
+	if err != nil {
+		return nil, fmt.Errorf("git ls-files: %s", firstLines(out, 3))
+	}
+	var files []string
+	// Tiap entri: "<mode> <objek> <stage>\t<path>".
+	for entry := range bytes.SplitSeq(out, []byte{0}) {
+		meta, name, found := bytes.Cut(entry, []byte{'\t'})
+		if found && bytes.HasPrefix(meta, []byte("100755 ")) {
+			files = append(files, string(name))
+		}
+	}
+	return files, nil
 }
 
 func describe(source, version string) string {
@@ -107,13 +137,20 @@ func firstLines(out []byte, n int) string {
 // Dari repository git, yang disalin adalah berkas yang dilacak ditambah yang
 // baru dan tidak diabaikan — working tree apa adanya, tanpa node_modules dan
 // hasil build. Folder biasa disalin seluruhnya.
-func copyTree(ctx context.Context, src, dst string) (string, error) {
+func copyTree(ctx context.Context, src, dst string) (commit string, executables []string, err error) {
 	var files []string
-	commit := ""
+	executable := map[string]bool{}
 	if _, err := os.Stat(filepath.Join(src, ".git")); err == nil {
 		out, err := git(ctx, src, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
 		if err != nil {
-			return "", fmt.Errorf("git ls-files: %s", firstLines(out, 3))
+			return "", nil, fmt.Errorf("git ls-files: %s", firstLines(out, 3))
+		}
+		fromIndex, err := indexExecutables(ctx, src)
+		if err != nil {
+			return "", nil, err
+		}
+		for _, name := range fromIndex {
+			executable[name] = true
 		}
 		for name := range bytes.SplitSeq(out, []byte{0}) {
 			if len(name) > 0 {
@@ -136,7 +173,7 @@ func copyTree(ctx context.Context, src, dst string) (string, error) {
 			return nil
 		})
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 	}
 	for _, rel := range files {
@@ -146,16 +183,21 @@ func copyTree(ctx context.Context, src, dst string) (string, error) {
 			continue // dilacak git, tetapi sudah dihapus di working tree
 		}
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		if !info.Mode().IsRegular() {
 			continue // symlink dan berkas khusus tidak ikut
 		}
 		if err := copyFile(from, filepath.Join(dst, filepath.FromSlash(rel)), info.Mode().Perm()); err != nil {
-			return "", err
+			return "", nil, err
+		}
+		// Izin di disk untuk berkas yang belum dilacak git, dan untuk folder
+		// yang bukan repository.
+		if executable[rel] || info.Mode().Perm()&0o100 != 0 {
+			executables = append(executables, rel)
 		}
 	}
-	return commit, nil
+	return commit, executables, nil
 }
 
 func copyFile(from, to string, mode fs.FileMode) error {
