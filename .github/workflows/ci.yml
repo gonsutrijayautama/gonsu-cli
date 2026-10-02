@@ -23,7 +23,9 @@ permissions:
 jobs:
   go:
     name: Go
-    runs-on: ubuntu-latest
+    # Versi runner ditulis terang, bukan `ubuntu-latest`: label itu berpindah
+    # ke Ubuntu baru pada jadwal GitHub, dan CI tidak boleh berubah tanpa PR.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,3 +87,24 @@ jobs:
           test ! -e contoh/gonsu.kit.json
           test -f contoh/.gonsu/kit.json
           git -C contoh log --oneline
+
+  # Test yang sama di macOS dan Windows: gonsu dipasang di laptop tim, dan
+  # cara mengganti binary yang sedang berjalan (`gonsu update`) berbeda di
+  # tiap sistem. Tanpa -race: detektornya butuh kompiler C di Windows.
+  portable:
+    name: Test — ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test -count=1 ./...

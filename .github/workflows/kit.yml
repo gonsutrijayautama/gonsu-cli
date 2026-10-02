@@ -37,7 +37,9 @@ permissions:
 jobs:
   go-nextjs:
     name: gonsu new — kit go-nextjs
-    runs-on: ubuntu-latest
+    # Versi runner ditulis terang, bukan `ubuntu-latest`: label itu berpindah
+    # ke Ubuntu baru pada jadwal GitHub, dan CI tidak boleh berubah tanpa PR.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       KIT_DEPLOY_KEY: ${{ secrets.KIT_DEPLOY_KEY }}
