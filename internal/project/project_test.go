@@ -27,7 +27,8 @@ func TestValidateDisplayName(t *testing.T) {
 	if err := ValidateDisplayName("  Toko Baju "); err != nil {
 		t.Error(err)
 	}
-	for _, n := range []string{"", "   ", strings.Repeat("x", 201)} {
+	// Nama ditulis apa adanya ke berkas yang bukan kode: harus satu baris.
+	for _, n := range []string{"", "   ", strings.Repeat("x", 201), "Toko\nBaju", "Toko\tBaju", "Toko\x1b[2K"} {
 		if err := ValidateDisplayName(n); err == nil {
 			t.Errorf("%q diterima", n)
 		}

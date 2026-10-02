@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,18 +59,21 @@ func Fetch(ctx context.Context, source, version, dir string) (Origin, error) {
 		args = append(args, "--branch", version)
 	}
 	args = append(args, "--", source, dir)
+	// Alamat yang dicetak dan dicatat tidak pernah membawa token: pesan galat
+	// masuk log CI, dan .gonsu/kit.json ikut commit pertama project.
+	shown := withoutCredentials(source)
 	if out, err := git(ctx, "", args...); err != nil {
 		// Kit-nya terjangkau, hanya tag atau cabangnya yang tidak ada: petunjuk
 		// soal akses di bawah akan menyesatkan.
 		if version != "" && bytes.Contains(out, []byte("not found in upstream")) {
-			return Origin{}, fmt.Errorf("versi %s tidak ada di kit %s", version, source)
+			return Origin{}, fmt.Errorf("versi %s tidak ada di kit %s", version, shown)
 		}
 		return Origin{}, fmt.Errorf("mengambil kit %s gagal: %s\n"+
-			"Bila kit ini privat, pastikan akun GitHub Anda diberi akses ke repository-nya dan git dapat masuk:\n"+
+			"Kalau kit ini privat, pastikan akun GitHub kamu sudah diberi akses ke repository-nya dan git bisa masuk:\n"+
 			"  gh auth login && gh auth setup-git\n"+
-			"atau, bila memakai SSH key:\n"+
+			"atau, kalau pakai SSH key:\n"+
 			"  git config --global url.\"git@github.com:\".insteadOf \"https://github.com/\"",
-			describe(source, version), firstLines(out, 3))
+			describe(shown, version), firstLines(out, 3))
 	}
 	commit, err := git(ctx, dir, "rev-parse", "HEAD")
 	if err != nil {
@@ -85,7 +89,27 @@ func Fetch(ctx context.Context, source, version, dir string) (Origin, error) {
 	if err := os.RemoveAll(filepath.Join(dir, ".git")); err != nil {
 		return Origin{}, err
 	}
-	return Origin{Source: source, Version: version, Commit: strings.TrimSpace(string(commit)), Executables: executables}, nil
+	return Origin{Source: shown, Version: version, Commit: strings.TrimSpace(string(commit)), Executables: executables}, nil
+}
+
+// withoutCredentials membuang token dan sandi dari alamat git.
+//
+// Di alamat HTTP seluruh bagian sebelum "@" dibuang: GitHub menerima token
+// sebagai nama pengguna (https://TOKEN@github.com/...). Di alamat lain hanya
+// sandinya, karena nama pengguna di sana bagian dari alamat
+// (ssh://git@github.com/...). Alamat yang bukan URL — git@github.com:org/kit —
+// tidak dapat membawa sandi dan dikembalikan apa adanya.
+func withoutCredentials(source string) string {
+	u, err := url.Parse(source)
+	if err != nil || u.User == nil || u.Host == "" {
+		return source
+	}
+	if u.Scheme == "http" || u.Scheme == "https" {
+		u.User = nil
+	} else {
+		u.User = url.User(u.User.Username())
+	}
+	return u.String()
 }
 
 // indexExecutables mengembalikan berkas yang tercatat 100755 di indeks git

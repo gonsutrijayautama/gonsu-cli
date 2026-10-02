@@ -31,19 +31,28 @@ func Apply(dir string, m Manifest, id Identity, origin Origin) error {
 	if m.Identity.ModulePath != "" && id.ModulePath == "" {
 		return errors.New("kit ini butuh module path Go")
 	}
+	// Yang dihapus dan ditulis atas permintaan kit selalu lewat os.Root: kit
+	// boleh membawa symlink, dan `remove` yang menyebut "tautan/berkas" tidak
+	// boleh sampai ke berkas di luar project. Manifes hanya diperiksa bentuk
+	// jalurnya (filepath.IsLocal), bukan ke mana symlink-nya menunjuk.
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	for _, p := range m.Remove {
-		if err := os.RemoveAll(filepath.Join(dir, filepath.FromSlash(p))); err != nil {
-			return err
+		if err := root.RemoveAll(filepath.FromSlash(p)); err != nil {
+			return fmt.Errorf("membuang %s (remove di manifes kit): %w", p, err)
 		}
 	}
 	// Manifes selalu dibuang, walau kit lupa mendaftarkannya.
-	if err := os.RemoveAll(filepath.Join(dir, ManifestName)); err != nil {
+	if err := root.RemoveAll(ManifestName); err != nil {
 		return err
 	}
 
 	raw, code := replacers(m.Identity, id)
 	samples := sampleValues(m.Identity)
-	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -89,7 +98,7 @@ func Apply(dir string, m Manifest, id Identity, origin Origin) error {
 	if err != nil {
 		return err
 	}
-	return writeOrigin(dir, m, origin)
+	return writeOrigin(root, m, origin)
 }
 
 func sampleValues(sample Identity) []string {
@@ -188,7 +197,7 @@ func stripKitBlocks(content string) (string, error) {
 // writeOrigin mencatat kit asal project. Dengan catatan ini, selisih antara
 // tag kit asal dan tag terbaru dapat dicari saat produk ingin mengikuti
 // perubahan kit.
-func writeOrigin(dir string, m Manifest, origin Origin) error {
+func writeOrigin(root *os.Root, m Manifest, origin Origin) error {
 	record := struct {
 		Kit string `json:"kit"`
 		Origin
@@ -197,9 +206,17 @@ func writeOrigin(dir string, m Manifest, origin Origin) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(dir, filepath.FromSlash(OriginPath))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+	path := filepath.FromSlash(OriginPath)
+	if err := root.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("menyiapkan %s: %w", OriginPath, err)
 	}
-	return os.WriteFile(path, append(raw, '\n'), 0o644)
+	// Berkas bawaan kit di jalur ini dibuang dulu: kalau ia symlink, yang
+	// ditulis berkas baru, bukan berkas yang ditunjuknya.
+	if err := root.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("menyiapkan %s: %w", OriginPath, err)
+	}
+	if err := root.WriteFile(path, append(raw, '\n'), 0o644); err != nil {
+		return fmt.Errorf("menulis %s: %w", OriginPath, err)
+	}
+	return nil
 }
