@@ -13,19 +13,6 @@ import (
 	"golang.org/x/mod/module"
 )
 
-// Spec adalah isian `gonsu new`.
-type Spec struct {
-	// ProductCode adalah kode produk di Console GONSU. Harus sama persis:
-	// lease yang menyebut produk lain ditolak kit, dan registrasi rilis
-	// mencocokkannya.
-	ProductCode string
-	DisplayName string
-	Backend     string
-	Frontend    string
-	// ModulePath hanya untuk backend Go.
-	ModulePath string
-}
-
 // productCodePattern sama dengan aturan kolom products.code di GONSU One.
 var productCodePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 

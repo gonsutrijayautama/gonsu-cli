@@ -334,4 +334,73 @@ func TestVersionAndHelp(t *testing.T) {
 	if err := Run(context.Background(), []string{"hapus"}, w.env); !errors.Is(err, ErrUsage) {
 		t.Errorf("perintah tak dikenal = %v", err)
 	}
+
+	// Meminta bantuan sebuah perintah bukan galat, dan yang tampil bantuan
+	// gonsu sendiri — bukan daftar flag bawaan package flag.
+	for _, args := range [][]string{{"new", "--help"}, {"new", "-h"}, {"new", "toko", "--help"}, {"update", "--help"}} {
+		w.out.Reset()
+		if err := Run(context.Background(), args, w.env); err != nil {
+			t.Errorf("%v = %v, ingin tanpa galat", args, err)
+		}
+		if out := w.out.String(); !strings.Contains(out, "gonsu update --check") || strings.Contains(out, "Usage of") {
+			t.Errorf("%v menampilkan:\n%s", args, out)
+		}
+		if len(w.fetched) != 0 {
+			t.Errorf("%v tetap mengambil kit", args)
+		}
+	}
+}
+
+// Pekerjaan yang mungkin lama diumumkan SEBELUM dimulai: tanpa itu gonsu
+// tampak macet selama kit diambil dan dependency dipasang.
+func TestNewAnnouncesSlowSteps(t *testing.T) {
+	w := newWorld(t, false)
+	var seen []string
+	exec := w.env.Exec
+	w.env.Exec = func(ctx context.Context, dir, name string, args ...string) error {
+		if name != "git" {
+			seen = append(seen, w.out.String())
+		}
+		return exec(ctx, dir, name, args...)
+	}
+	if err := Run(context.Background(), []string{"new", "toko"}, w.env); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 2 || !strings.Contains(seen[0], "… go mod download") || !strings.Contains(seen[1], "… bun install --frozen-lockfile") {
+		t.Errorf("keluaran sebelum tiap pemasangan = %q", seen)
+	}
+	if out := w.out.String(); strings.Index(out, "… mengambil starter kit") > strings.Index(out, "project dibuat") {
+		t.Errorf("pengambilan kit tidak diumumkan lebih dulu:\n%s", out)
+	}
+}
+
+// Ctrl+C di tengah pemasangan dependency: project-nya sudah jadi, tetapi
+// gonsu tidak melaporkan berhasil dan tidak melanjutkan langkah berikutnya.
+func TestNewInterruptedDuringInstall(t *testing.T) {
+	w := newWorld(t, false)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	exec := w.env.Exec
+	w.env.Exec = func(c context.Context, dir, name string, args ...string) error {
+		if name == "go" {
+			cancel()
+			return context.Canceled
+		}
+		return exec(c, dir, name, args...)
+	}
+	err := Run(ctx, []string{"new", "toko"}, w.env)
+	if err == nil || !strings.Contains(err.Error(), "dihentikan") || !strings.Contains(err.Error(), "./toko") {
+		t.Fatalf("galat = %v, ingin menyebut dihentikan dan foldernya", err)
+	}
+	if _, err := os.Stat(filepath.Join(w.env.Dir, "toko", "README.md")); err != nil {
+		t.Errorf("project yang sudah jadi ikut dibuang: %v", err)
+	}
+	for _, c := range w.commands {
+		if strings.Contains(c, "bun") {
+			t.Errorf("pemasangan berikutnya tetap dijalankan: %q", w.commands)
+		}
+	}
+	if strings.Contains(w.out.String(), "Langkah berikutnya") {
+		t.Errorf("langkah berikutnya tetap dicetak:\n%s", w.out)
+	}
 }

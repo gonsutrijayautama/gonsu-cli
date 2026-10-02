@@ -34,6 +34,10 @@ type Env struct {
 	// Version adalah versi gonsu, diisi saat build. Kosong berarti dibaca
 	// dari informasi build Go (go install ...@v1.2.3).
 	Version string
+	// Releases adalah halaman rilis gonsu, untuk `gonsu update` dan
+	// pemberitahuan versi baru. Nil berarti tidak diperiksa — bentuk yang
+	// dipakai test, yang tidak pernah menghubungi jaringan.
+	Releases Releases
 }
 
 // ErrUsage berarti argumen salah; pesannya sudah menjelaskan.
@@ -49,6 +53,8 @@ func Run(ctx context.Context, args []string, env Env) error {
 	switch args[0] {
 	case "new":
 		return runNew(ctx, args[1:], env)
+	case "update":
+		return runUpdate(ctx, args[1:], env)
 	case "version", "--version", "-v":
 		_, err := fmt.Fprintf(env.Stdout, "gonsu %s\n", env.version())
 		return err
@@ -100,6 +106,8 @@ func printHelp(w io.Writer) {
 
 Pemakaian:
   gonsu new [kode-produk] [flag]   membuat project baru
+  gonsu update                     memperbarui gonsu ke rilis terbaru
+  gonsu update --check             hanya memeriksa apakah ada rilis baru
   gonsu version                    versi gonsu
 
 Flag gonsu new:

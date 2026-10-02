@@ -116,9 +116,11 @@ func describe(source, version string) string {
 func git(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
-	// Tanpa ini git yang tidak punya kredensial berhenti menunggu nama
-	// pengguna di terminal, dan `gonsu new` tampak macet.
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	// GIT_TERMINAL_PROMPT: tanpa ini git yang tidak punya kredensial berhenti
+	// menunggu nama pengguna di terminal, dan `gonsu new` tampak macet.
+	// LC_ALL: pesan git dibaca untuk mengenali sebab kegagalan (Fetch), jadi
+	// bahasanya tidak boleh ikut pengaturan mesin pemakai.
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return out, err

@@ -81,7 +81,7 @@ func Load(dir string) (Manifest, error) {
 func (m Manifest) validate() error {
 	switch {
 	case m.Schema > schemaVersion:
-		return fmt.Errorf("skema %d lebih baru daripada yang dipahami gonsu ini (%d) — perbarui gonsu", m.Schema, schemaVersion)
+		return fmt.Errorf("skema %d lebih baru daripada yang dipahami gonsu ini (%d) — perbarui gonsu: gonsu update", m.Schema, schemaVersion)
 	case m.Schema < 1:
 		return errors.New("schema wajib diisi")
 	case m.Kit == "":

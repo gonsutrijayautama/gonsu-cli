@@ -41,8 +41,9 @@ gonsu tidak mengandaikan salah satunya.
 - **Folder tujuan tidak pernah ditimpa**, dan kit yang gagal diambil atau
   diterapkan tidak meninggalkan project setengah jadi.
 - **Test tanpa jaringan.** `go test ./...` tidak pernah menghubungi GitHub: kit
-  uji dibuat di folder sementara, dan pengambilan lewat git diuji terhadap
-  repository lokal.
+  uji dibuat di folder sementara, pengambilan lewat git diuji terhadap
+  repository lokal, dan `gonsu update` terhadap halaman rilis tiruan di mesin
+  itu sendiri.
 - **Tidak ada isi kit di sini.** Jangan menyalin kode, dokumen, atau workflow
   kit ke repository ini — termasuk sebagai contoh di test (kit uji dibuat dari
   berkas rekaan). Kit dapat dijadikan privat kapan saja, dan repository ini
@@ -57,8 +58,18 @@ gonsu tidak mengandaikan salah satunya.
   `install.sh` dan `install.ps1` di akar repository adalah jalur pasang resmi;
   keduanya WAJIB mencocokkan SHA-256 sebelum memasang, tidak butuh sudo atau
   hak administrator, dan diuji `install.yml` di Linux, macOS, dan Windows.
-  Mengubah nama berkas rilis berarti mengubah `scripts/release.sh` dan kedua
-  installer bersamaan.
+  Mengubah nama berkas rilis berarti mengubah `scripts/release.sh`, kedua
+  installer, dan `internal/selfupdate` bersamaan.
+- **`gonsu update`** (`internal/selfupdate`) adalah jalur pasang ketiga dan
+  tunduk pada aturan yang sama: SHA-256 dicocokkan sebelum memasang, dan
+  `gonsu` lama tidak disentuh sampai binary baru lolos seluruh pemeriksaan.
+  Versi terbaru dibaca dari pengalihan `releases/latest`, bukan API GitHub
+  (batas 60 permintaan per jam per IP). Pemeriksaan rilis di `gonsu new` tidak
+  pernah menahan maupun menggagalkannya. `GONSU_RELEASES_URL` hanya untuk
+  test.
+- **Versi runner ditulis terang** (`ubuntu-24.04`), bukan `ubuntu-latest`:
+  label itu berpindah ke Ubuntu baru pada jadwal GitHub. Naik versi runner
+  adalah PR tersendiri.
 - **Tanpa atribusi AI** di pesan commit maupun deskripsi PR.
 - **Dokumen ikut kode**, di PR yang sama: `README.md` untuk perilaku CLI dan
   cara memasangnya.
