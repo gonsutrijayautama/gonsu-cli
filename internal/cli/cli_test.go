@@ -137,7 +137,9 @@ func TestNewNonInteractive(t *testing.T) {
 	if strings.Join(w.commands, "\n") != strings.Join(want, "\n") {
 		t.Errorf("perintah = %q", w.commands)
 	}
-	for _, want := range []string{"cd toko-baju", "make run", "# server dan database lokal", "Go + Next.js"} {
+	for _, want := range []string{"cd toko-baju", "make run", "# server dan database lokal", "Go + Next.js",
+		// Console hanya dibuka staf platform; tim produk memintanya.
+		`minta tim platform GONSU mendaftarkan produk "toko-baju" di Console`} {
 		if !strings.Contains(w.out.String(), want) {
 			t.Errorf("keluaran tidak memuat %q:\n%s", want, w.out)
 		}
