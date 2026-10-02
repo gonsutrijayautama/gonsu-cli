@@ -27,8 +27,10 @@ type newOptions struct {
 	version string
 	// kitSource mengganti alamat kit dari katalog: untuk perawat kit yang
 	// mencoba perubahannya sebelum digabung.
-	kitSource     string
-	git, install  bool
+	kitSource    string
+	git, install bool
+	// update: perbarui gonsu dulu kalau ada rilis baru (hanya di terminal).
+	update        bool
 	noInteraction bool
 	// given mencatat flag yang diberikan: pertanyaannya tidak ditanyakan lagi.
 	given map[string]bool
@@ -48,6 +50,7 @@ func parseNew(args []string, stderr io.Writer) (*newOptions, error) {
 	fs.StringVar(&o.kitSource, "kit-source", "", "folder atau alamat git kit, menggantikan katalog")
 	fs.BoolVar(&o.git, "git", true, "buat repository git")
 	fs.BoolVar(&o.install, "install", true, "pasang dependency")
+	fs.BoolVar(&o.update, "update", true, "perbarui gonsu dulu kalau ada rilis baru")
 	fs.BoolVar(&o.noInteraction, "no-interaction", false, "jangan bertanya")
 	fs.BoolVar(&o.noInteraction, "n", false, "jangan bertanya")
 
@@ -145,6 +148,17 @@ func runNew(ctx context.Context, args []string, env Env) error {
 	if !ask && o.code == "" {
 		return fmt.Errorf("%w: kode produk wajib diisi — gonsu new <kode-produk>", ErrUsage)
 	}
+	// Sebelum bertanya: project dibuat gonsu terbaru, dengan pertanyaan dan
+	// pemeriksaan terbarunya. Yang tidak diperbarui (--update=false) tetap
+	// diberi tahu sesudah project jadi.
+	newer := func() string { return "" }
+	if o.update && env.Restart != nil {
+		if done, err := updateFirst(ctx, env, args); done {
+			return err
+		}
+	} else {
+		newer = newerRelease(ctx, env)
+	}
 	if ask {
 		out := newPrinter(env.Stdout)
 		_, _ = fmt.Fprintf(env.Stdout, "\n  %s\n\n", out.title.Render("GONSU — membuat produk baru"))
@@ -166,7 +180,6 @@ func runNew(ctx context.Context, args []string, env Env) error {
 	if err != nil {
 		return err
 	}
-	newer := newerRelease(ctx, env)
 	out.step("mengambil starter kit")
 	manifest, origin, err := create(ctx, env, o, dir)
 	if err != nil {

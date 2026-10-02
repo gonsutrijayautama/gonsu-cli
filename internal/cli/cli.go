@@ -35,13 +35,24 @@ type Env struct {
 	// dari informasi build Go (go install ...@v1.2.3).
 	Version string
 	// Releases adalah halaman rilis gonsu, untuk `gonsu update` dan
-	// pemberitahuan versi baru. Nil berarti tidak diperiksa — bentuk yang
+	// pembaruan sebelum `gonsu new`. Nil berarti tidak diperiksa — bentuk yang
 	// dipakai test, yang tidak pernah menghubungi jaringan.
 	Releases Releases
+	// Restart menjalankan gonsu yang baru dipasang dengan argumen args dan
+	// menunggunya selesai. Gonsu baru yang keluar dengan galat dilaporkan
+	// sebagai ExitError. Nil berarti gonsu new tidak memperbarui dirinya.
+	Restart func(ctx context.Context, args []string) error
 }
 
 // ErrUsage berarti argumen salah; pesannya sudah menjelaskan.
 var ErrUsage = errors.New("argumen salah")
+
+// ExitError berarti gonsu yang dijalankan ulang (Env.Restart) keluar dengan
+// kode Code. Galatnya sudah ia cetak sendiri: main cukup keluar dengan kode
+// yang sama, tanpa mencetak apa pun lagi.
+type ExitError struct{ Code int }
+
+func (e ExitError) Error() string { return fmt.Sprintf("gonsu keluar dengan kode %d", e.Code) }
 
 // Run menjalankan gonsu dengan argumen tanpa nama program.
 func Run(ctx context.Context, args []string, env Env) error {
@@ -117,6 +128,7 @@ Flag gonsu new:
   --module <path>      module path Go, misalnya github.com/organisasi/toko
   --git=false          tanpa repository git
   --install=false      tanpa memasang dependency
+  --update=false       tanpa memperbarui gonsu lebih dulu
   -n, --no-interaction jangan bertanya; isian yang kosong memakai bawaan
 
 Untuk perawat starter kit:
@@ -124,6 +136,7 @@ Untuk perawat starter kit:
   --version <cabang>     selain nomor versi, --version menerima nama cabang kit
 
 Tanpa -n dan di terminal, gonsu menanyakan isian yang belum diberikan.
+Di terminal, gonsu new memperbarui gonsu dulu kalau ada rilis baru.
 Tanpa --version, yang diambil keadaan TERBARU kit. Kit asal project tercatat
 di .gonsu/kit.json. Starter kit diambil dengan git; kalau kit-nya privat, akun
 GitHub kamu harus punya akses dan git harus bisa masuk (lihat README gonsu-cli).

@@ -5,8 +5,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +18,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gonsutrijayautama/gonsu-cli/internal/cli"
 	"github.com/gonsutrijayautama/gonsu-cli/internal/selfupdate"
 )
 
@@ -134,5 +137,27 @@ func TestUpdateReplacesRunningBinary(t *testing.T) {
 	// Yang baru saja dipasang tahu dirinya sudah terbaru.
 	if out := run("update"); !strings.Contains(out, "sudah yang terbaru") {
 		t.Errorf("update kedua = %q", out)
+	}
+}
+
+// restart menjalankan gonsu sungguhan dan meneruskan kode keluarnya: sesudah
+// memperbarui dirinya, gonsu new menyerahkan perintahnya ke binary yang baru.
+func TestRestart(t *testing.T) {
+	if testing.Short() {
+		t.Skip("membangun binary gonsu")
+	}
+	run := restart(build(t, t.TempDir(), "v0.0.1"))
+	if err := run(context.Background(), []string{"version"}); err != nil {
+		t.Errorf("gonsu version = %v", err)
+	}
+	// Galat pemakaian keluar dengan kode 2, dan kodenya sampai ke pemanggil.
+	err := run(context.Background(), []string{"perintah-yang-tidak-ada"})
+	if exit, ok := errors.AsType[cli.ExitError](err); !ok || exit.Code != 2 {
+		t.Errorf("perintah tak dikenal = %v, ingin ExitError berkode 2", err)
+	}
+	// Binary yang tidak ada bukan ExitError: gonsu new lanjut dengan yang lama.
+	err = restart(filepath.Join(t.TempDir(), "tidak-ada"))(context.Background(), []string{"version"})
+	if _, exited := errors.AsType[cli.ExitError](err); err == nil || exited {
+		t.Errorf("binary yang tidak ada = %v, ingin galat yang bukan ExitError", err)
 	}
 }

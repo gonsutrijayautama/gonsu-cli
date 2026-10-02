@@ -112,8 +112,169 @@ func TestUpdateFailures(t *testing.T) {
 	}
 }
 
-// Sesudah project jadi, gonsu memberi tahu bila ada rilis yang lebih baru —
-// hanya di terminal, dan tidak pernah menahan maupun menggagalkan gonsu new.
+// restarts mencatat argumen gonsu yang dijalankan ulang, dan menjawab err.
+type restarts struct {
+	args [][]string
+	err  error
+}
+
+func (r *restarts) run(_ context.Context, args []string) error {
+	r.args = append(r.args, args)
+	return r.err
+}
+
+var newArgs = []string{"new", "toko", "-n", "--git=false", "--install=false"}
+
+// Di terminal, gonsu new memasang rilis yang lebih baru dulu, lalu
+// menyerahkan perintahnya ke gonsu yang baru itu.
+func TestNewUpdatesFirst(t *testing.T) {
+	w := newWorld(t, true)
+	releases, restarted := &fakeReleases{latest: "v0.2.1"}, &restarts{}
+	w.env.Version, w.env.Releases, w.env.Restart = "v0.2.0", releases, restarted.run
+	if err := Run(context.Background(), newArgs, w.env); err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	if strings.Join(releases.installed, ",") != "v0.2.1" {
+		t.Errorf("yang dipasang = %v, ingin v0.2.1", releases.installed)
+	}
+	// --update=false: gonsu yang baru tidak memeriksa rilis sekali lagi.
+	want := "new --update=false toko -n --git=false --install=false"
+	if len(restarted.args) != 1 || strings.Join(restarted.args[0], " ") != want {
+		t.Errorf("dijalankan ulang dengan %q, ingin %q", restarted.args, want)
+	}
+	// Project dibuat gonsu yang baru, bukan yang ini.
+	if len(w.fetched) != 0 {
+		t.Errorf("gonsu lama tetap mengambil kit: %q", w.fetched)
+	}
+	for _, want := range []string{"memperbarui gonsu v0.2.0 → v0.2.1", "gonsu v0.2.1 terpasang"} {
+		if !strings.Contains(w.out.String(), want) {
+			t.Errorf("keluaran tidak memuat %q:\n%s", want, w.out)
+		}
+	}
+
+	// Galat gonsu yang baru menjadi galat perintah ini, dengan kode yang sama.
+	w = newWorld(t, true)
+	w.env.Version, w.env.Releases = "v0.2.0", &fakeReleases{latest: "v0.2.1"}
+	w.env.Restart = (&restarts{err: ExitError{Code: 2}}).run
+	err := Run(context.Background(), newArgs, w.env)
+	if exit, ok := errors.AsType[ExitError](err); !ok || exit.Code != 2 {
+		t.Errorf("galat = %v, ingin ExitError berkode 2", err)
+	}
+}
+
+// Yang tidak diperbarui: bukan terminal (skrip dan CI), gonsu yang sudah
+// terbaru, build pengembangan, rilis yang tidak terjangkau, dan
+// --update=false. Project tetap dibuat gonsu yang terpasang.
+func TestNewDoesNotUpdate(t *testing.T) {
+	for name, tc := range map[string]struct {
+		interactive bool
+		version     string
+		releases    *fakeReleases
+		args        []string
+	}{
+		"bukan terminal":       {false, "v0.2.0", &fakeReleases{latest: "v0.2.1"}, nil},
+		"sudah terbaru":        {true, "v0.2.1", &fakeReleases{latest: "v0.2.1"}, nil},
+		"terpasang lebih baru": {true, "v0.3.0", &fakeReleases{latest: "v0.2.1"}, nil},
+		"build pengembangan":   {true, "(devel)", &fakeReleases{latest: "v0.2.1"}, nil},
+		"rilis tak terjangkau": {true, "v0.2.0", &fakeReleases{latestErr: errors.New("mati")}, nil},
+		"nomor rilis aneh":     {true, "v0.2.0", &fakeReleases{latest: "terbaru"}, nil},
+		"--update=false":       {true, "v0.2.0", &fakeReleases{latest: "v0.2.1"}, []string{"--update=false"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := newWorld(t, tc.interactive)
+			restarted := &restarts{}
+			w.env.Version, w.env.Releases, w.env.Restart = tc.version, tc.releases, restarted.run
+			if err := Run(context.Background(), append(newArgs, tc.args...), w.env); err != nil {
+				t.Fatalf("new: %v", err)
+			}
+			if len(tc.releases.installed) != 0 || len(restarted.args) != 0 {
+				t.Errorf("tetap memperbarui: dipasang %v, dijalankan ulang %q", tc.releases.installed, restarted.args)
+			}
+			if len(w.fetched) != 1 || !strings.Contains(w.out.String(), "Langkah berikutnya") {
+				t.Errorf("project tidak dibuat:\n%s", w.out)
+			}
+		})
+	}
+
+	// Yang menolak diperbarui tetap diberi tahu ada rilis baru.
+	w := newWorld(t, true)
+	w.env.Version, w.env.Releases, w.env.Restart = "v0.2.0", &fakeReleases{latest: "v0.2.1"}, (&restarts{}).run
+	if err := Run(context.Background(), append(newArgs, "--update=false"), w.env); err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	if want := "gonsu v0.2.1 tersedia (terpasang v0.2.0). Jalankan: gonsu update"; !strings.Contains(w.out.String(), want) {
+		t.Errorf("keluaran tidak memuat %q:\n%s", want, w.out)
+	}
+}
+
+// Pembaruan yang gagal tidak pernah menggagalkan gonsu new: project dibuat
+// gonsu yang terpasang, dan pemakai diberi tahu sebabnya.
+func TestNewContinuesWhenUpdateFails(t *testing.T) {
+	down := errors.New("folder /usr/local/bin tidak dapat ditulis\nPasang ulang lewat installer.")
+	for name, tc := range map[string]struct {
+		releases *fakeReleases
+		restart  error
+		want     string
+	}{
+		"pemasangan gagal": {&fakeReleases{latest: "v0.2.1", installErr: down}, nil,
+			"gonsu v0.2.1 belum bisa dipasang (folder /usr/local/bin tidak dapat ditulis); lanjut dengan v0.2.0. Coba nanti: gonsu update"},
+		"gonsu baru tidak mau jalan": {&fakeReleases{latest: "v0.2.1"}, errors.New("exec format error"),
+			"gonsu v0.2.1 tidak bisa dijalankan dari sini (exec format error); lanjut dengan v0.2.0"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := newWorld(t, true)
+			w.env.Version, w.env.Releases = "v0.2.0", tc.releases
+			w.env.Restart = (&restarts{err: tc.restart}).run
+			if err := Run(context.Background(), newArgs, w.env); err != nil {
+				t.Fatalf("new: %v", err)
+			}
+			for _, want := range []string{tc.want, "Langkah berikutnya"} {
+				if !strings.Contains(w.out.String(), want) {
+					t.Errorf("keluaran tidak memuat %q:\n%s", want, w.out)
+				}
+			}
+		})
+	}
+
+	// Rilis yang tidak menjawab tidak menahan gonsu new lebih dari batasnya.
+	w := newWorld(t, true)
+	w.env.Version, w.env.Releases, w.env.Restart = "v0.2.0", &fakeReleases{slow: true}, (&restarts{}).run
+	start := time.Now()
+	if err := Run(context.Background(), newArgs, w.env); err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	if !strings.Contains(w.out.String(), "Langkah berikutnya") {
+		t.Errorf("project tidak dibuat:\n%s", w.out)
+	}
+	if waited := time.Since(start); waited > 10*time.Second {
+		t.Errorf("gonsu new tertahan %s oleh pemeriksaan rilis", waited)
+	}
+
+	// Ctrl+C di tengah pembaruan: gonsu berhenti, tidak lanjut membuat project.
+	ctx, cancel := context.WithCancel(context.Background())
+	w = newWorld(t, true)
+	w.env.Version, w.env.Restart = "v0.2.0", (&restarts{}).run
+	w.env.Releases = interrupted{fakeReleases: &fakeReleases{latest: "v0.2.1"}, cancel: cancel}
+	err := Run(ctx, newArgs, w.env)
+	if err == nil || !strings.Contains(err.Error(), "dibatalkan") || len(w.fetched) != 0 {
+		t.Errorf("galat = %v, kit yang diambil = %q", err, w.fetched)
+	}
+}
+
+// interrupted adalah halaman rilis yang pemasangannya dihentikan pemakai.
+type interrupted struct {
+	*fakeReleases
+	cancel context.CancelFunc
+}
+
+func (i interrupted) Install(ctx context.Context, _ string) error {
+	i.cancel()
+	return ctx.Err()
+}
+
+// Tanpa pembaruan otomatis, gonsu memberi tahu sesudah project jadi bila ada
+// rilis yang lebih baru — hanya di terminal, dan tidak pernah menahan maupun
+// menggagalkan gonsu new.
 func TestNewMentionsNewerRelease(t *testing.T) {
 	run := func(t *testing.T, interactive bool, version string, releases *fakeReleases) string {
 		t.Helper()

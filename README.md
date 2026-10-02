@@ -67,20 +67,32 @@ kit, hanya pustaka publik (`gonsu-one-sdk-go`, `gonsu-appkit-go`).
 
 ### Memperbarui gonsu
 
+Biasanya kamu tidak perlu melakukan apa-apa: di terminal, `gonsu new` memasang
+rilis terbaru dulu kalau ada, lalu melanjutkan dengan versi baru itu.
+
 ```sh
-gonsu update           # pasang rilis terbaru
+gonsu -v               # versi yang terpasang
 gonsu update --check   # cuma cek, ada rilis baru atau tidak
+gonsu update           # pasang rilis terbaru
 ```
 
-`gonsu update` mengunduh rilis terbaru untuk sistem kamu, mencocokkan
-SHA-256-nya dengan `SHA256SUMS` seperti installer, lalu menjalankan binary
-barunya sekali untuk memastikan ia utuh. Baru sesudah itu `gonsu` yang terpasang
-diganti. Kalau salah satu langkah gagal, `gonsu` yang lama tidak disentuh.
+Pembaruan lewat `gonsu new` dan lewat `gonsu update` memakai jalur yang sama:
+rilis terbaru untuk sistem kamu diunduh, SHA-256-nya dicocokkan dengan
+`SHA256SUMS` seperti installer, lalu binary barunya dijalankan sekali untuk
+memastikan ia utuh. Baru sesudah itu `gonsu` yang terpasang diganti. Kalau
+salah satu langkah gagal, `gonsu` yang lama tidak disentuh.
 
-Di terminal, `gonsu new` juga memberi tahu kalau ada rilis yang lebih baru.
+Pembaruan lewat `gonsu new` tidak pernah menggagalkan `gonsu new`:
 
-`gonsu update` ada sejak v0.2.0. Dari versi yang lebih lama, jalankan lagi
-perintah pemasangan di atas sekali. Sesudah itu cukup `gonsu update`.
+- Kalau rilisnya tidak terjangkau atau foldernya tidak bisa ditulis, project
+  tetap dibuat dengan versi yang terpasang, dan kamu diberi tahu sebabnya.
+- Di skrip dan CI (bukan terminal), gonsu tidak mengganti dirinya.
+- Untuk melewatinya di terminal, pakai `--update=false`. gonsu tetap memberi
+  tahu kalau ada rilis baru.
+
+Pembaruan otomatis ada sejak v0.3.0, dan `gonsu update` sejak v0.2.0. Dari
+versi yang lebih lama, jalankan `gonsu update` sekali, atau perintah pemasangan
+di atas kalau `gonsu update` belum ada.
 
 ## Membuat project
 
