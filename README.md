@@ -71,11 +71,12 @@ Dengan Go: `go install github.com/gonsutrijayautama/gonsu-cli/cmd/gonsu@latest`.
 Setiap binary rilis membawa bukti asal yang dapat diperiksa:
 `gh attestation verify gonsu_linux_amd64.tar.gz --repo gonsutrijayautama/gonsu-cli`.
 
-`gonsu` sendiri publik dan dapat dipasang siapa pun. **Starter kit-nya privat**:
-`gonsu new` menarik kit dengan git, jadi yang dibutuhkan, sekali per laptop:
+`gonsu new` menarik starter kit dengan git, jadi git harus terpasang. Kit yang
+publik langsung bisa ditarik.
 
-1. **Akses.** Akun GitHub Anda diundang ke repository kit yang Anda pakai
-   (`gonsu-starter-go-nextjs`).
+**Bila kit-nya privat**, yang dibutuhkan, sekali per laptop:
+
+1. **Akses.** Akun GitHub Anda diundang ke repository kit itu.
 2. **Git dapat masuk ke GitHub**, dengan salah satu cara:
 
    ```sh
@@ -91,9 +92,7 @@ Tidak ada token atau secret tambahan. Repository produk yang dihasilkan berdiri
 sendiri: CI-nya tidak pernah menarik kit, hanya pustaka publik
 (`gonsu-one-sdk-go`, `gonsu-appkit-go`).
 
-Bila `gonsu new` gagal mengambil kit, pesannya menyebut jawaban git. Sebab yang
-paling sering: akun belum diundang ke repository kit, atau langkah 2 belum
-dikerjakan. Tanpa akses ke kit, `gonsu` tidak menghasilkan apa pun.
+Bila `gonsu new` gagal mengambil kit, pesannya menyebut jawaban git.
 
 ## Yang didapat dari kit `go-nextjs`
 

@@ -105,7 +105,7 @@ main() {
   esac
   echo
   echo "Berikutnya: gonsu new <kode-produk>"
-  echo "Starter kit GONSU privat; lihat bagian Memasang di README untuk akses git-nya:"
+  echo "gonsu new menarik starter kit dengan git. Bila kit-nya privat, lihat:"
   echo "  https://github.com/$repo#memasang"
 }
 

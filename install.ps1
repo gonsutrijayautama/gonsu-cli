@@ -94,6 +94,6 @@
 
     Write-Host ''
     Write-Host 'Berikutnya: gonsu new <kode-produk>'
-    Write-Host 'Starter kit GONSU privat; lihat bagian Memasang di README untuk akses git-nya:'
+    Write-Host 'gonsu new menarik starter kit dengan git. Bila kit-nya privat, lihat:'
     Write-Host "  https://github.com/$repo#memasang"
 }
