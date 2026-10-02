@@ -194,7 +194,9 @@ func TestNewWithMissingTools(t *testing.T) {
 	if err := Run(context.Background(), []string{"new", "toko"}, w.env); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"git tidak ditemukan", "bun tidak ditemukan; jalankan bun install --frozen-lockfile di toko/web nanti"} {
+	// Path-nya ditulis dengan pemisah sistem pemakai.
+	where := filepath.Join("toko", "web")
+	for _, want := range []string{"git tidak ditemukan", "bun tidak ditemukan; jalankan bun install --frozen-lockfile di " + where + " nanti"} {
 		if !strings.Contains(w.out.String(), want) {
 			t.Errorf("keluaran tidak memuat %q:\n%s", want, w.out)
 		}
