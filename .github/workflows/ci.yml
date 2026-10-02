@@ -1,0 +1,87 @@
+# CI gonsu-cli.
+#
+# HANYA runner GitHub, tidak pernah self-hosted: repository ini publik, dan PR
+# dari fork dapat menjalankan kode di runner yang dipakainya. Tanpa secret dan
+# tanpa jaringan ke repository kit: yang diuji di sini adalah gonsu sendiri, dengan
+# kit uji yang dibuat di tempat. Kit sungguhan diuji CI-nya sendiri, dan
+# gabungannya di kit.yml.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Run lama pada ref yang sama dibatalkan: pipeline usang tidak perlu ditunggu.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Format
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Belum di-gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      # Termasuk pengambilan kit lewat git, terhadap repository lokal.
+      - name: Test
+        run: go test -race -count=1 ./...
+
+      # Binary yang sungguhan, tanpa tanya-jawab: yang dipakai skrip dan CI
+      # tim produk. Kit-nya kit uji kecil dari folder, jadi tanpa jaringan.
+      - name: gonsu new dari binary
+        run: |
+          # Runner GitHub tidak punya identitas git; tanpa ini commit pertama
+          # dilewati dan jalur itu tidak teruji.
+          git config --global user.name "gonsu-cli CI"
+          git config --global user.email "ci@gonsu-cli.invalid"
+          go build -o "$RUNNER_TEMP/gonsu" ./cmd/gonsu
+
+          kit="$RUNNER_TEMP/kit-uji"
+          mkdir -p "$kit"
+          cat > "$kit/gonsu.kit.json" <<'EOF'
+          {
+            "schema": 1,
+            "kit": "uji",
+            "label": "Kit Uji",
+            "identity": {
+              "product_code": "produk-contoh",
+              "display_name": "Produk Contoh",
+              "module_path": "github.com/gonsu/starter"
+            },
+            "remove": ["KIT.md"],
+            "next_steps": ["make run   # server"]
+          }
+          EOF
+          echo "untuk perawat kit" > "$kit/KIT.md"
+          printf '# Produk Contoh\n\nKode `produk-contoh`, module `github.com/gonsu/starter`.\n' > "$kit/README.md"
+
+          cd "$RUNNER_TEMP"
+          ./gonsu new contoh --kit-source "$kit" -n --install=false
+          grep -q '^# Contoh$' contoh/README.md
+          grep -q 'github.com/gonsutrijayautama/contoh' contoh/README.md
+          test ! -e contoh/KIT.md
+          test ! -e contoh/gonsu.kit.json
+          test -f contoh/.gonsu/kit.json
+          git -C contoh log --oneline

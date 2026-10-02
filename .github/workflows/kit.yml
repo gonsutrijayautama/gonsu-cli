@@ -1,0 +1,116 @@
+# gonsu new terhadap KIT SUNGGUHAN di katalog (ujung `main`-nya), lalu project
+# hasilnya dibangun: bukti bahwa penggantian identitas menghasilkan project
+# yang ter-compile, bukan hanya berkas yang berganti teks.
+#
+# Hanya berjalan saat sisi gonsu berubah: katalog atau cara kit diterapkan.
+# Test lengkap project — database, uji peramban, image rilis — dijalankan CI
+# repository kit itu sendiri.
+#
+# Repository kit privat. Job ini membacanya dengan deploy key HANYA-BACA milik
+# kit, disimpan sebagai secret KIT_DEPLOY_KEY. Tanpa secret itu — termasuk
+# pada PR dari fork, yang tidak menerima secret — job dilewati.
+#
+# Repository INI publik, jadi log job ini publik: jangan mencetak isi kit.
+name: Kit
+
+on:
+  pull_request:
+    paths:
+      - internal/catalog/**
+      - internal/kit/**
+      - .github/workflows/kit.yml
+  push:
+    branches: [main]
+    paths:
+      - internal/catalog/**
+      - internal/kit/**
+      - .github/workflows/kit.yml
+
+concurrency:
+  group: kit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go-nextjs:
+    name: gonsu new — kit go-nextjs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      KIT_DEPLOY_KEY: ${{ secrets.KIT_DEPLOY_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Akses baca ke repository kit
+        id: access
+        run: |
+          if [ -z "$KIT_DEPLOY_KEY" ]; then
+            echo "::notice::KIT_DEPLOY_KEY belum dipasang; pemeriksaan terhadap kit sungguhan dilewati."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$KIT_DEPLOY_KEY" > ~/.ssh/kit
+          chmod 600 ~/.ssh/kit
+          # Kunci host GitHub dari API-nya sendiri lewat TLS, bukan ssh-keyscan
+          # yang mempercayai siapa pun yang menjawab di jaringan.
+          curl -fsSL https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host github.com
+            IdentityFile ~/.ssh/kit
+            IdentitiesOnly yes
+          EOF
+          git config --global url."git@github.com:".insteadOf "https://github.com/"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.access.outputs.ready == 'true'
+        with:
+          go-version-file: go.mod
+
+      - name: gonsu new
+        if: steps.access.outputs.ready == 'true'
+        run: |
+          go build -o "$RUNNER_TEMP/gonsu" ./cmd/gonsu
+          cd "$RUNNER_TEMP"
+          ./gonsu new contoh-uji --name 'Toko "Uji"' -n --git=false --install=false
+          cat contoh-uji/.gonsu/kit.json
+
+      # Identitas contoh kit tidak boleh tersisa di mana pun. Yang dicetak
+      # hanya jumlahnya: nama berkas kit bukan konsumsi log publik.
+      - name: Tidak ada sisa identitas contoh
+        if: steps.access.outputs.ready == 'true'
+        working-directory: ${{ runner.temp }}/contoh-uji
+        run: |
+          # .gonsu/kit.json memang mencatat alamat kit asalnya.
+          leftover="$(grep -rIl --exclude-dir=.gonsu -e 'produk-contoh' -e 'Produk Contoh' -e 'gonsu-starter-go-nextjs' . | wc -l)"
+          if [ "$leftover" -ne 0 ]; then
+            echo "::error::Identitas contoh kit tersisa di $leftover berkas. Ulangi di laptop: gonsu new contoh-uji, lalu grep -rIl produk-contoh."
+            exit 1
+          fi
+
+      # Module path yang diganti harus konsisten di seluruh import, dan hasil
+      # penggantian tetap rapi menurut gofmt. Keluaran perintahnya TIDAK
+      # dicetak: galat compiler mengutip kode kit, dan log ini publik.
+      - name: Project hasil ter-compile
+        if: steps.access.outputs.ready == 'true'
+        working-directory: ${{ runner.temp }}/contoh-uji
+        run: |
+          quiet() {
+            if ! "$@" > "$RUNNER_TEMP/quiet.log" 2>&1; then
+              echo "::error::'$*' gagal di project hasil. Keluarannya tidak dicetak (kit privat, log publik). Ulangi di laptop: gonsu new contoh-uji, lalu jalankan perintah yang sama."
+              exit 1
+            fi
+          }
+          quiet go build ./...
+          quiet go vet ./...
+          quiet go vet -tags dev ./...
+          unformatted="$(gofmt -l cmd internal migrations | wc -l)"
+          if [ "$unformatted" -ne 0 ]; then
+            echo "::error::$unformatted berkas tidak rapi menurut gofmt sesudah identitas diganti."
+            exit 1
+          fi
+          # Dokumen project hasil masih menunjuk kode yang ada.
+          quiet go test -count=1 ./internal/security/...
