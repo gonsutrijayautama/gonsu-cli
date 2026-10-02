@@ -6,10 +6,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 )
+
+// onDisk: sistem berkasnya menyimpan izin eksekusi. Windows tidak.
+const onDisk = runtime.GOOS != "windows"
 
 // sample adalah identitas contoh kit uji, dengan bentuk yang sama seperti
 // kit sungguhan.
@@ -113,8 +117,8 @@ func TestApply(t *testing.T) {
 			t.Errorf("%s ikut ke project hasil", name)
 		}
 	}
-	// Izin eksekusi skrip bertahan.
-	if info, err := os.Stat(filepath.Join(dir, "scripts", "run.sh")); err != nil || info.Mode().Perm()&0o100 == 0 {
+	// Izin eksekusi skrip bertahan. Windows tidak menyimpannya di disk.
+	if info, err := os.Stat(filepath.Join(dir, "scripts", "run.sh")); err != nil || (onDisk && info.Mode().Perm()&0o100 == 0) {
 		t.Errorf("scripts/run.sh tidak lagi dapat dieksekusi: %v", err)
 	}
 
@@ -261,6 +265,12 @@ func TestFetchFromDirectory(t *testing.T) {
 	if got := read(t, dst, "go.mod"); got != kitFiles["go.mod"] {
 		t.Errorf("go.mod = %q", got)
 	}
+	// Folder yang bukan repository git hanya punya izin di disk, dan Windows
+	// tidak menyimpannya: di sana kit dari folder biasa tidak membawa izin
+	// eksekusi. Kit dari git membawanya lewat indeks (TestFetchClones).
+	if !onDisk {
+		return
+	}
 	if info, err := os.Stat(filepath.Join(dst, "scripts", "run.sh")); err != nil || info.Mode().Perm()&0o100 == 0 {
 		t.Errorf("izin eksekusi tidak ikut tersalin: %v", err)
 	}
@@ -346,6 +356,9 @@ func TestFetchClones(t *testing.T) {
 	src := writeKit(t, kitFiles)
 	run := gitRepo(t, src)
 	run("add", "-A")
+	// Seperti kit sungguhan: izin eksekusi dicatat di indeks git, sehingga
+	// tetap ada walau repository-nya dibuat di Windows.
+	run("update-index", "--chmod=+x", "scripts/kit-check.sh", "scripts/run.sh")
 	run("commit", "-q", "-m", "awal")
 	run("tag", "kit-v1.0.0")
 	tagged := run("rev-parse", "HEAD")

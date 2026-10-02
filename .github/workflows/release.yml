@@ -18,7 +18,9 @@ permissions:
 jobs:
   release:
     name: Rilis
-    runs-on: ubuntu-latest
+    # Versi runner ditulis terang, bukan `ubuntu-latest`: label itu berpindah
+    # ke Ubuntu baru pada jadwal GitHub, dan CI tidak boleh berubah tanpa PR.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write # membuat GitHub Release

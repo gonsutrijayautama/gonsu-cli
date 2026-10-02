@@ -38,6 +38,9 @@ func parseNew(args []string, stderr io.Writer) (*newOptions, error) {
 	o := &newOptions{given: map[string]bool{}}
 	fs := flag.NewFlagSet("gonsu new", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	// Bantuan bawaan package flag berbahasa Inggris dan bertanda hubung satu;
+	// yang ditampilkan bantuan gonsu sendiri (runNew).
+	fs.Usage = func() {}
 	fs.StringVar(&o.name, "name", "", "nama tampilan produk")
 	fs.StringVar(&o.kit, "kit", "", "starter kit")
 	fs.StringVar(&o.module, "module", "", "module path Go")
@@ -131,6 +134,10 @@ func kitRef(version string) string {
 
 func runNew(ctx context.Context, args []string, env Env) error {
 	o, err := parseNew(args, env.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		printHelp(env.Stdout)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -159,6 +166,8 @@ func runNew(ctx context.Context, args []string, env Env) error {
 	if err != nil {
 		return err
 	}
+	newer := newerRelease(ctx, env)
+	out.step("mengambil starter kit")
 	manifest, origin, err := create(ctx, env, o, dir)
 	if err != nil {
 		// Kit yang gagal diambil atau diterapkan tidak meninggalkan project
@@ -178,7 +187,15 @@ func runNew(ctx context.Context, args []string, env Env) error {
 	if o.install {
 		installDependencies(ctx, env, dir, o, manifest, out)
 	}
+	// Ctrl+C di tengah pemasangan: project-nya sudah jadi, tetapi gonsu tidak
+	// boleh melaporkan berhasil.
+	if ctx.Err() != nil {
+		return fmt.Errorf("dihentikan; project sudah dibuat di ./%s, tetapi pemasangan dependency belum selesai", o.code)
+	}
 	out.nextSteps(o, manifest)
+	if latest := newer(); latest != "" {
+		out.warn("gonsu " + latest + " tersedia (terpasang " + env.version() + "). Jalankan: gonsu update")
+	}
 	return nil
 }
 
@@ -282,6 +299,11 @@ func installDependencies(ctx context.Context, env Env, dir string, o *newOptions
 			out.warn(tool + " tidak ditemukan; jalankan " + label + " di " + filepath.Join(o.code, s.Dir) + " nanti")
 			continue
 		}
+		if ctx.Err() != nil {
+			return
+		}
+		// Pemasangan dapat makan waktu semenit; tanpa baris ini gonsu tampak macet.
+		out.step(label)
 		if err := env.Exec(ctx, where, tool, args...); err != nil {
 			out.warn(label + " gagal: " + firstLine(err))
 			continue
@@ -385,6 +407,9 @@ func newPrinter(w io.Writer) printer {
 
 func (p printer) done(msg string) { _, _ = fmt.Fprintf(p.w, "  %s %s\n", p.ok.Render("✓"), msg) }
 func (p printer) warn(msg string) { _, _ = fmt.Fprintf(p.w, "  %s %s\n", p.attn.Render("!"), msg) }
+
+// step mengumumkan pekerjaan yang baru dimulai dan mungkin lama.
+func (p printer) step(msg string) { _, _ = fmt.Fprintf(p.w, "  %s\n", p.dim.Render("… "+msg)) }
 
 // nextSteps mencetak langkah berikutnya, dari manifes kit. Bagian sesudah
 // " # " pada tiap baris adalah keterangannya.

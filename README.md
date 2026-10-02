@@ -60,7 +60,7 @@ irm https://raw.githubusercontent.com/gonsutrijayautama/gonsu-cli/main/install.p
 Skripnya mengunduh binary rilis terbaru, mencocokkan SHA-256-nya dengan
 `SHA256SUMS` rilis itu, lalu menaruhnya di `~/.local/bin` (Windows:
 `%LOCALAPPDATA%\Programs\gonsu`, yang ditambahkan ke PATH pengguna). Tanpa sudo
-dan tanpa hak administrator. Menjalankannya lagi memperbarui `gonsu`.
+dan tanpa hak administrator.
 
 | Variabel | Arti |
 |---|---|
@@ -68,6 +68,23 @@ dan tanpa hak administrator. Menjalankannya lagi memperbarui `gonsu`.
 | `GONSU_INSTALL_DIR` | folder tujuan |
 
 Dengan Go: `go install github.com/gonsutrijayautama/gonsu-cli/cmd/gonsu@latest`.
+
+### Memperbarui
+
+```sh
+gonsu update           # memasang rilis terbaru
+gonsu update --check   # hanya memeriksa apakah ada rilis baru
+```
+
+`gonsu update` mengunduh rilis terbaru untuk sistem Anda, mencocokkan
+SHA-256-nya dengan `SHA256SUMS` seperti installer, menjalankan binary barunya
+sekali untuk memastikan ia utuh, lalu baru menggantikan `gonsu` yang terpasang.
+Bila salah satu langkah itu gagal, `gonsu` yang lama tidak disentuh.
+
+Di terminal, `gonsu new` juga memberi tahu bila ada rilis yang lebih baru.
+
+`gonsu update` ada sejak v0.2.0. Dari versi yang lebih lama, jalankan sekali
+lagi perintah pemasangan di atas — sesudah itu cukup `gonsu update`.
 
 Setiap binary rilis membawa bukti asal yang dapat diperiksa:
 `gh attestation verify gonsu_linux_amd64.tar.gz --repo gonsutrijayautama/gonsu-cli`.

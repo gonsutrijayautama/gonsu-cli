@@ -13,6 +13,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gonsutrijayautama/gonsu-cli/internal/cli"
+	"github.com/gonsutrijayautama/gonsu-cli/internal/selfupdate"
 )
 
 // version diisi saat build rilis: -ldflags "-X main.version=v1.2.3".
@@ -33,6 +34,9 @@ func main() {
 		Interactive: term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())),
 		Dir:         dir,
 		Version:     version,
+		// GONSU_RELEASES_URL mengganti alamat rilis — hanya untuk menguji
+		// `gonsu update` terhadap server lokal.
+		Releases: selfupdate.Client{Base: os.Getenv("GONSU_RELEASES_URL")},
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gonsu:", err)
