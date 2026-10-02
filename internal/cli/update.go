@@ -79,6 +79,58 @@ func runUpdate(ctx context.Context, args []string, env Env) error {
 	return nil
 }
 
+// Batas waktu pembaruan sebelum `gonsu new`: memeriksa rilis, lalu memasangnya.
+const (
+	releaseCheckTimeout   = 3 * time.Second
+	releaseInstallTimeout = time.Minute
+)
+
+// updateFirst memasang rilis gonsu yang lebih baru, lalu menjalankan ulang
+// `gonsu new` dengan binary baru itu. done berarti perintahnya sudah selesai
+// dikerjakan — oleh gonsu yang baru, atau dihentikan pemakai — dan err adalah
+// hasilnya; gonsu ini tidak melanjutkan.
+//
+// Pembaruan tidak pernah menggagalkan `gonsu new`: rilis yang tidak
+// terjangkau, folder yang tidak dapat ditulis, atau binary baru yang tidak mau
+// jalan hanya berarti project dibuat oleh gonsu yang terpasang.
+func updateFirst(ctx context.Context, env Env, args []string) (done bool, err error) {
+	current := env.version()
+	// Hanya di terminal: skrip dan CI memakai versi yang mereka pasang sendiri,
+	// dan binary-nya tidak berganti di tengah pipeline.
+	if env.Releases == nil || !env.Interactive || !semver.IsValid(current) {
+		return false, nil
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, releaseCheckTimeout)
+	latest, err := env.Releases.Latest(checkCtx)
+	cancel()
+	if err != nil || !semver.IsValid(latest) || semver.Compare(current, latest) >= 0 {
+		return false, nil
+	}
+
+	out := newPrinter(env.Stdout)
+	out.step("memperbarui gonsu " + current + " → " + latest)
+	installCtx, cancel := context.WithTimeout(ctx, releaseInstallTimeout)
+	err = env.Releases.Install(installCtx, latest)
+	cancel()
+	if ctx.Err() != nil {
+		return true, errors.New("dibatalkan; tidak ada yang ditulis")
+	}
+	if err != nil {
+		out.warn("gonsu " + latest + " belum bisa dipasang (" + firstLine(err) + "); lanjut dengan " + current +
+			". Coba nanti: gonsu update")
+		return false, nil
+	}
+	out.done("gonsu " + latest + " terpasang")
+
+	// --update=false: gonsu yang baru tidak memeriksa rilis sekali lagi.
+	err = env.Restart(ctx, append([]string{"new", "--update=false"}, args...))
+	if _, exited := errors.AsType[ExitError](err); err != nil && !exited {
+		out.warn("gonsu " + latest + " tidak bisa dijalankan dari sini (" + firstLine(err) + "); lanjut dengan " + current)
+		return false, nil
+	}
+	return true, err
+}
+
 // newerRelease memeriksa di latar belakang apakah ada rilis gonsu yang lebih
 // baru, untuk diberitahukan sesudah `gonsu new` selesai. Hasilnya dibaca lewat
 // fungsi yang dikembalikan; kosong berarti tidak ada, atau tidak diketahui.
@@ -93,7 +145,7 @@ func newerRelease(ctx context.Context, env Env) func() string {
 		return none
 	}
 	result := make(chan string, 1)
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, releaseCheckTimeout)
 	go func() {
 		latest, err := env.Releases.Latest(ctx)
 		if err == nil && semver.IsValid(latest) && semver.Compare(current, latest) < 0 {
@@ -104,6 +156,14 @@ func newerRelease(ctx context.Context, env Env) func() string {
 	}()
 	return func() string {
 		defer cancel()
+		// Jawaban yang sudah ada dibaca lebih dulu. Project biasanya selesai
+		// sesudah batas waktunya lewat, dan select atas dua kanal yang
+		// sama-sama siap memilih salah satunya secara acak.
+		select {
+		case latest := <-result:
+			return latest
+		default:
+		}
 		select {
 		case latest := <-result:
 			return latest

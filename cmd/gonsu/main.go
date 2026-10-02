@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 
 	"golang.org/x/term"
@@ -19,6 +20,24 @@ import (
 // version diisi saat build rilis: -ldflags "-X main.version=v1.2.3".
 var version string
 
+// restart menjalankan gonsu di exe dengan argumen args, tersambung ke terminal
+// yang sama, dan menunggunya selesai.
+//
+// Tanpa konteks: Ctrl+C dari terminal sampai sendiri ke gonsu yang baru, yang
+// lalu membersihkan project setengah jadi. Mematikannya dari sini memotong
+// pembersihan itu.
+func restart(exe string) func(context.Context, []string) error {
+	return func(_ context.Context, args []string) error {
+		cmd := exec.Command(exe, args...)
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		err := cmd.Run()
+		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
+			return cli.ExitError{Code: exit.ExitCode()}
+		}
+		return err
+	}
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -28,7 +47,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gonsu:", err)
 		os.Exit(1)
 	}
-	err = cli.Run(ctx, os.Args[1:], cli.Env{
+	env := cli.Env{
 		Stdout:      os.Stdout,
 		Stderr:      os.Stderr,
 		Interactive: term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())),
@@ -37,8 +56,18 @@ func main() {
 		// GONSU_RELEASES_URL mengganti alamat rilis — hanya untuk menguji
 		// `gonsu update` terhadap server lokal.
 		Releases: selfupdate.Client{Base: os.Getenv("GONSU_RELEASES_URL")},
-	})
+	}
+	// Dibaca sebelum ada yang diganti: sesudah pembaruan, binary baru berada
+	// di path yang sama. Tanpa path ini gonsu new tidak memperbarui dirinya.
+	if exe, err := os.Executable(); err == nil {
+		env.Restart = restart(exe)
+	}
+	err = cli.Run(ctx, os.Args[1:], env)
 	if err != nil {
+		// Gonsu yang dijalankan ulang sudah mencetak galatnya sendiri.
+		if exit, ok := errors.AsType[cli.ExitError](err); ok {
+			os.Exit(max(exit.Code, 1))
+		}
 		fmt.Fprintln(os.Stderr, "gonsu:", err)
 		if errors.Is(err, cli.ErrUsage) {
 			os.Exit(2)

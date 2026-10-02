@@ -132,8 +132,15 @@ pemasangan, dan langkah berikutnya.
   tidak disentuh sampai binary baru lolos semua pemeriksaan.
 - **Versi terbaru dibaca dari redirect `releases/latest`**, bukan dari API
   GitHub, yang dibatasi 60 permintaan per jam per IP.
-- **Pemeriksaan rilis di `gonsu new` tidak pernah menahan atau
-  menggagalkannya.**
+- **Di terminal, `gonsu new` memperbarui gonsu dulu** kalau ada rilis baru,
+  lalu menjalankan ulang perintahnya dengan binary baru (`updateFirst`,
+  `Env.Restart`). Pembaruan ini tidak pernah menggagalkan `gonsu new`:
+  pemeriksaannya paling lama 3 detik, dan pembaruan yang gagal hanya berarti
+  project dibuat oleh gonsu yang terpasang. Di skrip dan CI gonsu tidak
+  mengganti dirinya, dan `--update=false` melewatinya.
+- **Gonsu yang dijalankan ulang selalu diberi `--update=false`.** Flag itu
+  tidak boleh dihapus atau diganti nama: gonsu lama yang memperbarui diri akan
+  memanggil gonsu baru dengannya.
 - **Nama file rilis dipakai di empat tempat.** Mengubahnya berarti mengubah
   `scripts/release.sh`, kedua installer, dan `internal/selfupdate` sekaligus.
 - **`GONSU_RELEASES_URL` dan `GONSU_DOWNLOAD_BASE` hanya untuk test.**
