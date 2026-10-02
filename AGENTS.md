@@ -3,7 +3,8 @@
 `gonsu` membuat project produk GONSU One: `gonsu new <kode-produk>`. Ia
 **orkestrator**: tidak membawa template. Isi project datang dari starter kit,
 repository tersendiri bernama `gonsu-starter-<kit>`, yang ditarik `gonsu new`
-dari `main`-nya. Repository ini PUBLIK; starter kit-nya privat.
+dari `main`-nya. Repository ini PUBLIK. Kit boleh publik atau privat —
+gonsu tidak mengandaikan salah satunya.
 
 ## Aturan
 
@@ -42,10 +43,10 @@ dari `main`-nya. Repository ini PUBLIK; starter kit-nya privat.
 - **Test tanpa jaringan.** `go test ./...` tidak pernah menghubungi GitHub: kit
   uji dibuat di folder sementara, dan pengambilan lewat git diuji terhadap
   repository lokal.
-- **Repository ini publik: tidak ada isi kit di sini.** Jangan menyalin kode,
-  dokumen, atau workflow kit ke repository ini — termasuk sebagai contoh di
-  test (kit uji dibuat dari berkas rekaan). Log CI pun publik: job yang
-  menarik kit tidak boleh mencetak isinya.
+- **Tidak ada isi kit di sini.** Jangan menyalin kode, dokumen, atau workflow
+  kit ke repository ini — termasuk sebagai contoh di test (kit uji dibuat dari
+  berkas rekaan). Kit dapat dijadikan privat kapan saja, dan repository ini
+  beserta log CI-nya tetap publik: job yang menarik kit tidak mencetak isinya.
 - **Tanpa rahasia dan tanpa nilai milik satu pemasangan.** Alamat server,
   domain, dan kredensial tidak ditulis di sini maupun di kit.
 - **CI hanya memakai runner GitHub**, tidak pernah self-hosted — PR dari fork

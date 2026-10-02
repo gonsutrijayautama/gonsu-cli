@@ -6,11 +6,12 @@
 # Test lengkap project — database, uji peramban, image rilis — dijalankan CI
 # repository kit itu sendiri.
 #
-# Repository kit privat. Job ini membacanya dengan deploy key HANYA-BACA milik
-# kit, disimpan sebagai secret KIT_DEPLOY_KEY. Tanpa secret itu — termasuk
+# Kit dapat dijadikan privat kapan saja, jadi job ini tidak mengandaikan kit
+# publik: ia membacanya dengan deploy key HANYA-BACA milik kit, disimpan
+# sebagai secret KIT_DEPLOY_KEY. Tanpa secret itu — termasuk
 # pada PR dari fork, yang tidak menerima secret — job dilewati.
 #
-# Repository INI publik, jadi log job ini publik: jangan mencetak isi kit.
+# Log job ini publik: jangan mencetak isi kit.
 name: Kit
 
 on:
@@ -100,7 +101,7 @@ jobs:
         run: |
           quiet() {
             if ! "$@" > "$RUNNER_TEMP/quiet.log" 2>&1; then
-              echo "::error::'$*' gagal di project hasil. Keluarannya tidak dicetak (kit privat, log publik). Ulangi di laptop: gonsu new contoh-uji, lalu jalankan perintah yang sama."
+              echo "::error::'$*' gagal di project hasil. Keluarannya tidak dicetak (kit bisa privat, log ini publik). Ulangi di laptop: gonsu new contoh-uji, lalu jalankan perintah yang sama."
               exit 1
             fi
           }

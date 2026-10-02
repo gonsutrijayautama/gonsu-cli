@@ -65,7 +65,7 @@ func Fetch(ctx context.Context, source, version, dir string) (Origin, error) {
 			return Origin{}, fmt.Errorf("versi %s tidak ada di kit %s", version, source)
 		}
 		return Origin{}, fmt.Errorf("mengambil kit %s gagal: %s\n"+
-			"Starter kit GONSU privat. Pastikan akun GitHub Anda diberi akses ke repository-nya dan git dapat masuk:\n"+
+			"Bila kit ini privat, pastikan akun GitHub Anda diberi akses ke repository-nya dan git dapat masuk:\n"+
 			"  gh auth login && gh auth setup-git\n"+
 			"atau, bila memakai SSH key:\n"+
 			"  git config --global url.\"git@github.com:\".insteadOf \"https://github.com/\"",
