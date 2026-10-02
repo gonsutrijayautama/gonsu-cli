@@ -397,6 +397,8 @@ func (p printer) nextSteps(o *newOptions, manifest kit.Manifest) {
 		}
 		_, _ = fmt.Fprintf(p.w, "    %s %s\n", command, note)
 	}
+	// Console GONSU hanya dibuka staf platform: tim produk tidak mendaftarkan
+	// produknya sendiri.
 	_, _ = fmt.Fprintf(p.w, "  %s\n", p.dim.Render(fmt.Sprintf(
-		"Sebelum rilis pertama: daftarkan produk %q di Console GONSU, lalu ikuti README.md.", o.code)))
+		"Sebelum rilis pertama: minta tim platform GONSU mendaftarkan produk %q di Console, lalu ikuti README.md.", o.code)))
 }

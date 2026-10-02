@@ -42,7 +42,8 @@ gonsu new toko --kit go-nextjs --module github.com/organisasi/toko -n
 `gonsu new -h` untuk seluruh flag.
 
 **Kode produk harus sama persis dengan kode produk di Console GONSU**: huruf
-kecil, angka, dan tanda hubung di antaranya, 2–60 karakter.
+kecil, angka, dan tanda hubung di antaranya, 2–60 karakter. Console hanya
+dibuka staf platform, jadi pendaftaran produknya diminta ke tim platform GONSU.
 
 ## Memasang
 
